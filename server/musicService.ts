@@ -546,41 +546,82 @@ export function normalizeString(str: string): string {
     .trim();
 }
 
+function cleanTitleForComparison(title: string): string {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/feat\..*$/i, '')
+    .replace(/ft\..*$/i, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
 /**
- * Validates a guess: supports title match, artist match, combined match, with lenient normalization.
- * Case-insensitive & accent-insensitive.
+ * Validates a guess: MUST match the song's title.
+ * In a music blind test, simply entering the artist or another track by the same artist is NOT a correct guess.
  */
 export function checkGuessMatch(
   guessText: string,
   targetSong: Song,
   guessedTrackId?: string
 ): boolean {
-  if (guessedTrackId && String(guessedTrackId) === String(targetSong.id)) {
+  if (
+    guessedTrackId &&
+    guessedTrackId !== 'raw_guess' &&
+    String(guessedTrackId) === String(targetSong.id)
+  ) {
     return true;
   }
 
-  const normGuess = normalizeString(guessText);
-  if (!normGuess || normGuess.length < 2) return false;
+  const cleanTargetTitle = cleanTitleForComparison(targetSong.title);
+  if (!cleanTargetTitle || cleanTargetTitle.length < 2) return false;
 
-  const normTitle = normalizeString(targetSong.title);
-  const normArtist = normalizeString(targetSong.artist);
-  const normBoth = normalizeString(`${targetSong.title} ${targetSong.artist}`);
-  const normBothReverse = normalizeString(`${targetSong.artist} ${targetSong.title}`);
+  const cleanGuess = cleanTitleForComparison(guessText);
+  if (!cleanGuess || cleanGuess.length < 2) return false;
 
-  // 1. Direct title match
-  if (normGuess === normTitle) return true;
-  if (normTitle.includes(normGuess) && (normGuess.length >= 3 || normGuess.length >= normTitle.length * 0.6)) return true;
-  if (normGuess.includes(normTitle) && normTitle.length >= 3) return true;
+  // 1. Direct title exact match
+  if (cleanGuess === cleanTargetTitle) return true;
 
-  // 2. Direct artist match (e.g. typing "theodort" or "THEODORT" for artist THEODORT is 100% valid!)
-  if (normGuess === normArtist) return true;
-  if (normArtist.includes(normGuess) && (normGuess.length >= 3 || normGuess.length >= normArtist.length * 0.6)) return true;
-  if (normGuess.includes(normArtist) && normArtist.length >= 3) return true;
+  // 2. If the guess contains the artist name, strip the artist to extract the candidate title
+  const cleanArtist = cleanTitleForComparison(targetSong.artist);
+  let guessWithoutArtist = cleanGuess;
+  if (cleanArtist && cleanArtist.length >= 2 && cleanGuess.includes(cleanArtist)) {
+    guessWithoutArtist = cleanGuess.replace(cleanArtist, '');
+  }
 
-  // 3. Combined title + artist match
-  if (normGuess === normBoth || normGuess === normBothReverse) return true;
-  if (normBoth.includes(normGuess) && normGuess.length >= 3) return true;
-  if (normBothReverse.includes(normGuess) && normGuess.length >= 3) return true;
+  if (guessWithoutArtist && guessWithoutArtist.length >= 2) {
+    if (guessWithoutArtist === cleanTargetTitle) return true;
+    if (
+      cleanTargetTitle.includes(guessWithoutArtist) &&
+      guessWithoutArtist.length >= Math.max(4, Math.floor(cleanTargetTitle.length * 0.75))
+    ) {
+      return true;
+    }
+    if (
+      guessWithoutArtist.includes(cleanTargetTitle) &&
+      cleanTargetTitle.length >= Math.max(4, Math.floor(guessWithoutArtist.length * 0.75))
+    ) {
+      return true;
+    }
+  }
+
+  // 3. Fallback: lenient substring match on title only (if guess covers at least 75% of the title)
+  if (
+    cleanTargetTitle.includes(cleanGuess) &&
+    cleanGuess.length >= Math.max(4, Math.floor(cleanTargetTitle.length * 0.75))
+  ) {
+    return true;
+  }
+  if (
+    cleanGuess.includes(cleanTargetTitle) &&
+    cleanTargetTitle.length >= Math.max(4, Math.floor(cleanGuess.length * 0.75))
+  ) {
+    return true;
+  }
 
   return false;
 }

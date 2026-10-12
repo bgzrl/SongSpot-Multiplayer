@@ -239,21 +239,38 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   const handleGuess = (song: Song, queryText: string) => {
     if (gameStatus !== 'playing' || !currentSong) return;
 
-    // Robust case-insensitive and diacritic matching
-    const normTargetTitle = normalizeText(currentSong.title);
-    const normTargetArtist = normalizeText(currentSong.artist);
-    const normTargetFull = `${normTargetTitle} ${normTargetArtist}`;
+    // Robust case-insensitive and diacritic matching strictly on song title
+    const cleanTargetTitle = normalizeText(currentSong.title);
+    const cleanTargetArtist = normalizeText(currentSong.artist);
+    const cleanGuessedTitle = normalizeText(song.title);
+    const cleanGuessedText = normalizeText(queryText || `${song.title} ${song.artist}`);
 
-    const normGuessedTitle = normalizeText(song.title);
-    const normGuessedArtist = normalizeText(song.artist);
-    const normGuessedFull = normalizeText(queryText || `${song.title} ${song.artist}`);
+    // If query text contains artist, strip artist to check title
+    let guessTextWithoutArtist = cleanGuessedText;
+    if (cleanTargetArtist && cleanTargetArtist.length >= 2 && cleanGuessedText.includes(cleanTargetArtist)) {
+      guessTextWithoutArtist = cleanGuessedText.replace(cleanTargetArtist, '');
+    }
 
-    const isMatch =
-      song.id === currentSong.id ||
-      (normGuessedTitle && normGuessedTitle === normTargetTitle) ||
-      (normGuessedFull.includes(normTargetTitle) && normGuessedFull.includes(normTargetArtist)) ||
-      (normTargetFull.includes(normGuessedTitle) && normGuessedTitle.length >= 3) ||
-      (normGuessedFull === normTargetFull);
+    // Must match the actual title of the song!
+    const isIdMatch =
+      Boolean(song.id &&
+      currentSong.id &&
+      song.id !== 'raw_guess' &&
+      String(song.id) === String(currentSong.id));
+
+    const isTitleDirectMatch = Boolean(cleanGuessedTitle && cleanGuessedTitle === cleanTargetTitle);
+
+    const isQueryTitleMatch = Boolean(
+      guessTextWithoutArtist &&
+      guessTextWithoutArtist.length >= 2 &&
+      (guessTextWithoutArtist === cleanTargetTitle ||
+        (cleanTargetTitle.includes(guessTextWithoutArtist) &&
+          guessTextWithoutArtist.length >= Math.max(4, Math.floor(cleanTargetTitle.length * 0.75))) ||
+        (guessTextWithoutArtist.includes(cleanTargetTitle) &&
+          cleanTargetTitle.length >= Math.max(4, Math.floor(guessTextWithoutArtist.length * 0.75))))
+    );
+
+    const isMatch = isIdMatch || isTitleDirectMatch || isQueryTitleMatch;
 
     if (isMatch) {
       // Won!
@@ -444,9 +461,9 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
           </div>
         </div>
 
-        {/* Sub-playlist tags if in Mix mode */}
-        {selectedPlaylist !== 'single-artist' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-800/80 scrollbar-none">
+        {/* Sub-bar: Playlist tags for Mix mode OR streamlined Artist selector for 100% Artiste */}
+        {selectedPlaylist !== 'single-artist' ? (
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-800 scrollbar-none">
             {playlists
               .filter(p => p.id !== 'single-artist')
               .map(pl => (
@@ -464,72 +481,65 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                 </button>
               ))}
           </div>
-        )}
-      </div>
+        ) : (
+          <div className="pt-2.5 border-t border-slate-800 space-y-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+              {/* Custom artist input */}
+              <form onSubmit={handleCustomArtistSubmit} className="flex items-center gap-1.5 flex-1 max-w-sm">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-amber-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={artistInputText}
+                    onChange={(e) => setArtistInputText(e.target.value)}
+                    placeholder="Rechercher un artiste (ex: Theodort)..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0"
+                >
+                  Choisir
+                </button>
+              </form>
 
-      {/* Prominent 100% Single Artist Selector Box */}
-      {selectedPlaylist === 'single-artist' && (
-        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-md">
-                <Crown className="w-5 h-5 fill-current" />
-              </div>
-              <div>
-                <div className="font-bold text-sm text-white flex items-center gap-2">
-                  <span>Mode 100% Artiste Unique</span>
-                  <span className="text-xs bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-400/30 font-bold">
-                    {singleArtistTarget}
-                  </span>
-                </div>
-                <div className="text-xs text-slate-400">
-                  Devinez exclusivement les sons de cet artiste (zéro intrus)
-                </div>
+              {/* Active artist badge */}
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400">En écoute :</span>
+                <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <Crown className="w-3 h-3 fill-current" />
+                  {singleArtistTarget}
+                </span>
               </div>
             </div>
 
-            {/* Custom Artist Search Input */}
-            <form onSubmit={handleCustomArtistSubmit} className="flex items-center gap-1.5">
-              <div className="relative flex-1 sm:flex-none">
-                <input
-                  type="text"
-                  value={artistInputText}
-                  onChange={(e) => setArtistInputText(e.target.value)}
-                  placeholder="Tapez un artiste (ex: Theodort)..."
-                  className="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 w-full sm:w-56"
-                />
-              </div>
-              <button
-                type="submit"
-                className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm shrink-0"
-              >
-                Changer
-              </button>
-            </form>
+            {/* Horizontal scrollable quick artist chips (single clean row) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                Populaires :
+              </span>
+              {POPULAR_ARTISTS.map(art => {
+                const isActive = singleArtistTarget.toLowerCase() === art.toLowerCase();
+                return (
+                  <button
+                    key={art}
+                    onClick={() => handleSelectArtist(art)}
+                    type="button"
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    {art}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
-          {/* Quick preset artist buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-semibold text-slate-400 mr-1">
-              Artistes populaires :
-            </span>
-            {POPULAR_ARTISTS.map(art => (
-              <button
-                key={art}
-                onClick={() => handleSelectArtist(art)}
-                type="button"
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  singleArtistTarget.toLowerCase() === art.toLowerCase()
-                    ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                    : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
-                }`}
-              >
-                {art}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {loading ? (
         <div className="py-24 text-center text-slate-400 bg-slate-900/60 border border-slate-800 rounded-3xl">

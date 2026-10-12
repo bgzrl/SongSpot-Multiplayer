@@ -293,8 +293,8 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
               </div>
             </div>
 
-            {/* If Single Artist is selected or custom search */}
-            {(roomState.settings.playlistId === 'single-artist' || isHost) && (
+            {/* If Single Artist is selected */}
+            {roomState.settings.playlistId === 'single-artist' && (
               <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-amber-300 flex items-center gap-1">
@@ -312,7 +312,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                         type="text"
                         value={customSearch}
                         onChange={e => setCustomSearch(e.target.value)}
-                        placeholder="Ex: Jul, Theodort, Gazo, Billie Eilish..."
+                        placeholder="Ex: Theodort, Jul, Gazo, SDM..."
                         className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
                       />
                       <button
@@ -323,9 +323,9 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                       </button>
                     </form>
 
-                    {/* Quick artist chips */}
-                    <div className="flex items-center gap-1 flex-wrap pt-1">
-                      {['Theodort', 'Jul', 'Gazo', 'Ninho', 'SDM', 'Billie Eilish', 'Sabrina Carpenter'].map(art => (
+                    {/* Quick artist chips in clean horizontal row */}
+                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pt-1">
+                      {['Theodort', 'Jul', 'Gazo', 'Ninho', 'SDM', 'PLK', 'Tiakola', 'Billie Eilish'].map(art => (
                         <button
                           key={art}
                           type="button"
@@ -337,7 +337,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                               playlistName: `👑 100% ${art}`,
                             });
                           }}
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border whitespace-nowrap transition-all cursor-pointer ${
                             (roomState.settings.customArtist || '').toLowerCase() === art.toLowerCase()
                               ? 'bg-amber-400 text-slate-950 border-amber-400'
                               : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
