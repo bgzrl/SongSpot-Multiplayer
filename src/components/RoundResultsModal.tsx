@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Song, RoundScoreRecord } from '../types/game';
 import { Play, Square, Award, Disc3, ExternalLink, Trophy, CheckCircle2, XCircle, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { SnippetAudioPlayer, stopAllAudio } from '../services/audioController';
 
 interface RoundResultsModalProps {
   song: Song;
@@ -24,7 +25,7 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   onVolumeChange,
 }) => {
   const [isPlayingFull, setIsPlayingFull] = useState(false);
-  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
+  const playerRef = useRef<SnippetAudioPlayer | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(5);
   const [currentVolume, setCurrentVolume] = useState<number>(() => {
     if (typeof volume === 'number' && !isNaN(volume)) return volume;
@@ -40,11 +41,9 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   useEffect(() => {
     if (typeof volume === 'number' && !isNaN(volume)) {
       setCurrentVolume(volume);
-      if (audioEl) {
-        audioEl.volume = volume;
-      }
+      playerRef.current?.setVolume(volume);
     }
-  }, [volume, audioEl]);
+  }, [volume]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -53,36 +52,32 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Play full 30s track using SnippetAudioPlayer to ensure zero overlap with other components
   useEffect(() => {
-    const audio = new Audio(song.previewUrl);
-    // Preserves the exact volume set on the potard!
-    audio.volume = currentVolume;
-    audio.addEventListener('ended', () => setIsPlayingFull(false));
-    audio.addEventListener('error', () => {
-      // Fallback via proxy if needed
-      if (!song.previewUrl.includes('/api/music/proxy-audio')) {
-        audio.src = `/api/music/proxy-audio?url=${encodeURIComponent(song.previewUrl)}`;
-        audio.load();
-        audio.play().then(() => setIsPlayingFull(true)).catch(() => {});
-      }
-    });
-    setAudioEl(audio);
+    stopAllAudio();
 
-    // Auto-play the full 30s track on reveal
-    audio.play().then(() => setIsPlayingFull(true)).catch(() => {});
+    const player = new SnippetAudioPlayer();
+    playerRef.current = player;
+    player.setVolume(currentVolume);
+    player.setCallbacks(
+      undefined,
+      (playing) => setIsPlayingFull(playing)
+    );
+
+    if (song.previewUrl) {
+      player.load(song.previewUrl, 0, 30);
+      player.playSnippet(0, 30);
+    }
 
     return () => {
-      audio.pause();
-      audio.src = '';
+      player.destroy();
     };
-  }, [song]);
+  }, [song.id, song.previewUrl]);
 
   const handleSliderVolumeChange = (newVol: number) => {
     const clamped = Math.max(0, Math.min(1, newVol));
     setCurrentVolume(clamped);
-    if (audioEl) {
-      audioEl.volume = clamped;
-    }
+    playerRef.current?.setVolume(clamped);
     try {
       localStorage.setItem('songspot_volume', clamped.toString());
     } catch {
@@ -92,13 +87,8 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   };
 
   const toggleFullPlay = () => {
-    if (!audioEl) return;
-    if (isPlayingFull) {
-      audioEl.pause();
-      setIsPlayingFull(false);
-    } else {
-      audioEl.play().then(() => setIsPlayingFull(true)).catch(() => {});
-    }
+    if (!playerRef.current) return;
+    playerRef.current.togglePlay(0, 30);
   };
 
   const volumePercent = Math.round(currentVolume * 100);

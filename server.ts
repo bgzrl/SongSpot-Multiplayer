@@ -601,11 +601,10 @@ async function startServer() {
                 step: 6,
                 state: updatedState,
               });
-              broadcastToRoom(room, 'room:update', updatedState);
 
-              // If all players have guessed or given up, or if host finishes, end round
+              // If all players have guessed or given up, end round
               const allDone = Array.from(room.players.values()).every(p => p.player.hasGuessed);
-              if (allDone || room.hostId === playerId) {
+              if (allDone) {
                 endRound(room);
               }
             } else {
@@ -624,7 +623,6 @@ async function startServer() {
                 step: nextStep,
                 state: updatedState,
               });
-              broadcastToRoom(room, 'room:update', updatedState);
             }
             break;
           }

@@ -170,9 +170,16 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     }
   };
 
+  const prevStepRef = useRef<number>(1);
+  const prevSongIdRef = useRef<string | null>(null);
+
   // Initialize Audio Player for current song
   useEffect(() => {
     if (!currentSong?.previewUrl) return;
+
+    if (prevSongIdRef.current === currentSong.id) return;
+    prevSongIdRef.current = currentSong.id;
+    prevStepRef.current = 1;
 
     if (playerRef.current) {
       playerRef.current.destroy();
@@ -196,9 +203,9 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     return () => {
       audioCtrl.destroy();
     };
-  }, [currentSong?.previewUrl]);
+  }, [currentSong?.id, currentSong?.previewUrl]);
 
-  // Update snippet bounds when step changes
+  // Update snippet bounds and auto-play ONLY when step advances
   useEffect(() => {
     if (!playerRef.current || !currentSong) return;
 
@@ -206,14 +213,15 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       const endSec = SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)];
       playerRef.current.setRange(0, endSec);
 
-      // Auto-play the newly unlocked segment from 0 to full unlocked duration
-      if (currentStep > 1) {
+      // Auto-play ONLY if currentStep actually increased
+      if (currentStep > prevStepRef.current && currentStep > 1) {
         playerRef.current.playSnippet(0, endSec);
       }
+      prevStepRef.current = currentStep;
     } else {
       playerRef.current.setRange(0, 30);
     }
-  }, [currentStep, currentSong, gameStatus]);
+  }, [currentStep, gameStatus]);
 
   // Spacebar shortcut to play/pause
   useEffect(() => {
@@ -398,6 +406,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
   const handleNextSong = () => {
     playerRef.current?.stop();
+    prevStepRef.current = 1;
     setAttempts([]);
     setCurrentStep(1);
     setGameStatus('playing');

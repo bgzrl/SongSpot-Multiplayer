@@ -29,6 +29,8 @@ interface GameRoundProps {
   onForceEndRound?: () => void;
 }
 
+const DEFAULT_SNIPPET_STEPS = [1.0, 2.0, 4.0, 7.0, 11.0, 16.0];
+
 export const GameRound: React.FC<GameRoundProps> = ({
   roomState,
   currentUserId,
@@ -40,12 +42,14 @@ export const GameRound: React.FC<GameRoundProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [attempts, setAttempts] = useState<AttemptItem[]>([]);
   const playerRef = useRef<SnippetAudioPlayer | null>(null);
+  const prevStepRef = useRef<number>(1);
+  const prevSongHintRef = useRef<string | null>(null);
 
   const me = roomState.players.find(p => p.id === currentUserId);
   const myStep = me?.currentStep || 1;
   const hasGuessed = me?.hasGuessed || false;
   const currentHint = roomState.currentSongHint;
-  const steps = roomState.settings.snippetSteps || [1.0, 2.0, 4.0, 7.0, 11.0, 16.0];
+  const steps = roomState.settings?.snippetSteps || DEFAULT_SNIPPET_STEPS;
 
   // Volume state (persisted)
   const [volume, setVolume] = useState<number>(() => {
@@ -93,6 +97,13 @@ export const GameRound: React.FC<GameRoundProps> = ({
 
   // Initialize and load audio player when hint changes
   useEffect(() => {
+    if (!currentHint?.previewUrl) return;
+
+    // Guard against re-triggering for the same song hint
+    if (prevSongHintRef.current === currentHint.previewUrl) return;
+    prevSongHintRef.current = currentHint.previewUrl;
+    prevStepRef.current = 1;
+
     const audioCtrl = new SnippetAudioPlayer();
     playerRef.current = audioCtrl;
     audioCtrl.setVolume(volume);
@@ -106,34 +117,33 @@ export const GameRound: React.FC<GameRoundProps> = ({
       }
     );
 
-    if (currentHint?.previewUrl) {
-      const endSec = steps[0] || 1.0;
-      audioCtrl.load(currentHint.previewUrl, 0, endSec);
-      // Auto play on new round start
-      audioCtrl.playSnippet(0, endSec);
-    }
+    const endSec = steps[0] || 1.0;
+    audioCtrl.load(currentHint.previewUrl, 0, endSec);
+    // Auto play on new round start
+    audioCtrl.playSnippet(0, endSec);
 
     return () => {
       audioCtrl.destroy();
     };
   }, [currentHint?.previewUrl]);
 
-  // Update snippet bounds and immediately play the newly unlocked portion when step advances
+  // Update snippet bounds and immediately play ONLY when the player's step actually advances
   useEffect(() => {
-    if (playerRef.current && currentHint?.previewUrl) {
-      if (!hasGuessed) {
-        const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
-        playerRef.current.setRange(0, endSec);
+    if (!playerRef.current || !currentHint?.previewUrl) return;
 
-        // Auto-play the newly unlocked snippet from 0 so the player hears the full context
-        if (myStep > 1) {
-          playerRef.current.playSnippet(0, endSec);
-        }
-      } else {
-        playerRef.current.setRange(0, 30);
+    if (!hasGuessed) {
+      const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
+      playerRef.current.setRange(0, endSec);
+
+      // Auto-play ONLY if myStep actually increased and is not the initial load
+      if (myStep > prevStepRef.current && myStep > 1) {
+        playerRef.current.playSnippet(0, endSec);
       }
+      prevStepRef.current = myStep;
+    } else {
+      playerRef.current.setRange(0, 30);
     }
-  }, [myStep, steps, currentHint?.previewUrl, hasGuessed]);
+  }, [myStep, hasGuessed]);
 
   // Spacebar shortcut to play/pause
   useEffect(() => {

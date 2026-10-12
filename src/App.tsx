@@ -36,15 +36,56 @@ const COLOR_LIST = [
 export default function App() {
   const [activeTab, setActiveTab] = useState<'multiplayer' | 'solo'>('multiplayer');
 
-  // User Profile
+  // User Profile with session-level isolation (allows distinct test sessions in multiple tabs)
   const [nickname, setNickname] = useState(() => {
-    return localStorage.getItem('songspot_nickname') || `Mélomane${Math.floor(Math.random() * 900 + 100)}`;
+    try {
+      const s = sessionStorage.getItem('songspot_nickname');
+      if (s) return s;
+      const l = localStorage.getItem('songspot_nickname');
+      if (l) {
+        sessionStorage.setItem('songspot_nickname', l);
+        return l;
+      }
+    } catch {}
+    const gen = `Mélomane${Math.floor(Math.random() * 900 + 100)}`;
+    try {
+      sessionStorage.setItem('songspot_nickname', gen);
+    } catch {}
+    return gen;
   });
+
   const [avatar, setAvatar] = useState(() => {
-    return localStorage.getItem('songspot_avatar') || AVATAR_LIST[Math.floor(Math.random() * AVATAR_LIST.length)];
+    try {
+      const s = sessionStorage.getItem('songspot_avatar');
+      if (s) return s;
+      const l = localStorage.getItem('songspot_avatar');
+      if (l) {
+        sessionStorage.setItem('songspot_avatar', l);
+        return l;
+      }
+    } catch {}
+    const gen = AVATAR_LIST[Math.floor(Math.random() * AVATAR_LIST.length)];
+    try {
+      sessionStorage.setItem('songspot_avatar', gen);
+    } catch {}
+    return gen;
   });
+
   const [color, setColor] = useState(() => {
-    return localStorage.getItem('songspot_color') || COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)];
+    try {
+      const s = sessionStorage.getItem('songspot_color');
+      if (s) return s;
+      const l = localStorage.getItem('songspot_color');
+      if (l) {
+        sessionStorage.setItem('songspot_color', l);
+        return l;
+      }
+    } catch {}
+    const gen = COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)];
+    try {
+      sessionStorage.setItem('songspot_color', gen);
+    } catch {}
+    return gen;
   });
 
   // Room & WebSocket state
@@ -77,11 +118,16 @@ export default function App() {
     }
   };
 
-  // Save profile changes
+  // Save profile changes to both session and local storage
   useEffect(() => {
-    localStorage.setItem('songspot_nickname', nickname);
-    localStorage.setItem('songspot_avatar', avatar);
-    localStorage.setItem('songspot_color', color);
+    try {
+      sessionStorage.setItem('songspot_nickname', nickname);
+      sessionStorage.setItem('songspot_avatar', avatar);
+      sessionStorage.setItem('songspot_color', color);
+      localStorage.setItem('songspot_nickname', nickname);
+      localStorage.setItem('songspot_avatar', avatar);
+      localStorage.setItem('songspot_color', color);
+    } catch {}
   }, [nickname, avatar, color]);
 
   // Load playlists presets
@@ -446,7 +492,7 @@ export default function App() {
                 currentUserId={playerId || ''}
                 onGuess={handleGuess}
                 onSkip={handleSkip}
-                onForceEndRound={handleNextRound}
+                onForceEndRound={roomState.hostId === playerId ? handleNextRound : undefined}
               />
             )}
 
