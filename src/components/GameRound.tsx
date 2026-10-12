@@ -243,8 +243,8 @@ export const GameRound: React.FC<GameRoundProps> = ({
         onSkip={!hasGuessed ? handleSkipSnippet : undefined}
       />
 
-      {/* SEARCH INPUT & DUAL BUTTONS */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl backdrop-blur-md">
+      {/* SEARCH INPUT & DUAL BUTTONS (Higher stacking context z-30 so dropdown floats on top of player progression) */}
+      <div className="relative z-30 bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl backdrop-blur-md">
         <SongSearchInput
           onGuess={handleGuessSubmit}
           onSkip={handleSkipSnippet}
@@ -289,8 +289,8 @@ export const GameRound: React.FC<GameRoundProps> = ({
         )}
       </div>
 
-      {/* Live Multiplayer Status Bar */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
+      {/* Live Multiplayer Status Bar (Lower stacking context z-10 so dropdown renders over it) */}
+      <div className="relative z-10 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-md">
         <div className="flex items-center justify-between mb-3 text-xs font-semibold text-slate-400">
           <span className="flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5 text-indigo-400" /> Progression des joueurs

@@ -560,7 +560,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
           {/* IN PLAY: SEARCH & SUBMIT */}
           {gameStatus === 'playing' ? (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl backdrop-blur-md">
+            <div className="relative z-30 bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl backdrop-blur-md">
               <SongSearchInput
                 onGuess={handleGuess}
                 currentStep={currentStep}
