@@ -28,7 +28,7 @@ interface SoloGameProps {
   playlists: PlaylistInfo[];
 }
 
-const SNIPPET_STEPS = [0.2, 0.5, 1.5, 4.0, 9.0, 15.0];
+const SNIPPET_STEPS = [1.0, 2.0, 4.0, 7.0, 11.0, 16.0];
 
 const POPULAR_ARTISTS = [
   'Theodort',
@@ -180,12 +180,11 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     audioCtrl.setVolume(volume);
     playerRef.current = audioCtrl;
 
-    const startSec = 0;
     const endSec = SNIPPET_STEPS[0];
-    audioCtrl.load(currentSong.previewUrl, startSec, endSec);
+    audioCtrl.load(currentSong.previewUrl, 0, endSec);
 
     // Auto-play the first snippet
-    audioCtrl.playSnippet(startSec, endSec);
+    audioCtrl.playSnippet(0, endSec);
 
     return () => {
       audioCtrl.destroy();
@@ -197,13 +196,12 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     if (!playerRef.current || !currentSong) return;
 
     if (gameStatus === 'playing') {
-      const startSec = currentStep > 1 ? SNIPPET_STEPS[currentStep - 2] : 0;
       const endSec = SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)];
-      playerRef.current.setRange(startSec, endSec);
+      playerRef.current.setRange(0, endSec);
 
-      // Auto-play the newly unlocked segment so user hears the continuation without rewinding
+      // Auto-play the newly unlocked segment from 0 to full unlocked duration
       if (currentStep > 1) {
-        playerRef.current.playSnippet(startSec, endSec);
+        playerRef.current.playSnippet(0, endSec);
       }
     } else {
       playerRef.current.setRange(0, 30);
@@ -231,9 +229,8 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       playerRef.current.togglePlay(0, 30);
       return;
     }
-    const startSec = currentStep > 1 ? SNIPPET_STEPS[currentStep - 2] : 0;
     const endSec = SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)];
-    playerRef.current.togglePlay(startSec, endSec);
+    playerRef.current.togglePlay(0, endSec);
   };
 
   const handleGuess = (song: Song, queryText: string) => {

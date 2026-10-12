@@ -624,14 +624,16 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
+      <footer className="w-full border-t border-slate-900 py-6 text-center text-xs text-slate-500">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Disc className="w-4 h-4 text-emerald-400" />
-            <span>SongSpot Multiplayer — Blind Test musical inspiré de songspot.net</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span className="font-semibold text-slate-400">SongSpot</span>
+            <span className="text-slate-600">·</span>
+            <span>Blind test musical en direct</span>
           </div>
-          <div>
-            Extraits 30s officiels via iTunes & Deezer Public Free APIs
+          <div className="text-slate-500">
+            Extraits audio officiels certifiés
           </div>
         </div>
       </footer>

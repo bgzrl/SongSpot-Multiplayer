@@ -3,8 +3,8 @@
 export class SnippetAudioPlayer {
   private audio: HTMLAudioElement | null = null;
   private animFrameId: number | null = null;
-  private startDurationSec: number = 0;
-  private maxDurationSec: number = 0.2;
+  private currentUrl: string = '';
+  private maxDurationSec: number = 1.0;
   private onTimeUpdateCallback?: (currentTime: number, progressPercent: number) => void;
   private onPlayStateChangeCallback?: (isPlaying: boolean) => void;
   private isPlayingState: boolean = false;
@@ -26,8 +26,15 @@ export class SnippetAudioPlayer {
       });
 
       this.audio.addEventListener('error', (e) => {
-        console.warn('Audio playback error:', e);
-        this.stop();
+        console.warn('Audio playback error on direct URL:', e);
+        // Fallback to server audio proxy if direct playback fails
+        if (this.currentUrl && !this.currentUrl.includes('/api/music/proxy-audio') && this.audio) {
+          const proxyUrl = `/api/music/proxy-audio?url=${encodeURIComponent(this.currentUrl)}`;
+          this.audio.src = proxyUrl;
+          this.audio.load();
+        } else {
+          this.stop();
+        }
       });
     }
   }
@@ -40,20 +47,19 @@ export class SnippetAudioPlayer {
     this.onPlayStateChangeCallback = onPlayStateChange;
   }
 
-  load(url: string, startDurationSec: number, maxDurationSec: number) {
+  load(url: string, _startDurationSec: number = 0, maxDurationSec: number = 1.0) {
     if (!this.audio) return;
     this.stop();
-    this.startDurationSec = Math.max(0, startDurationSec);
-    this.maxDurationSec = Math.max(this.startDurationSec + 0.1, maxDurationSec);
+    this.currentUrl = url;
+    this.maxDurationSec = Math.max(0.5, maxDurationSec);
     if (this.audio.src !== url) {
       this.audio.src = url;
       this.audio.load();
     }
   }
 
-  setRange(startDurationSec: number, maxDurationSec: number) {
-    this.startDurationSec = Math.max(0, startDurationSec);
-    this.maxDurationSec = Math.max(this.startDurationSec + 0.1, maxDurationSec);
+  setRange(_startDurationSec: number = 0, maxDurationSec: number = 1.0) {
+    this.maxDurationSec = Math.max(0.5, maxDurationSec);
   }
 
   setVolume(volume: number) {
@@ -70,34 +76,37 @@ export class SnippetAudioPlayer {
     return this.volumeLevel;
   }
 
-  playSnippet(startDurationSec?: number, maxDurationSec?: number) {
+  // Always plays from 0 seconds up to maxDurationSec (standard Heardle/Songspot mechanic)
+  playSnippet(_startDurationSec: number = 0, maxDurationSec?: number) {
     if (!this.audio) return;
 
-    if (startDurationSec !== undefined) {
-      this.startDurationSec = Math.max(0, startDurationSec);
-    }
     if (maxDurationSec !== undefined) {
-      this.maxDurationSec = Math.max(this.startDurationSec + 0.1, maxDurationSec);
+      this.maxDurationSec = Math.max(0.5, maxDurationSec);
     }
 
-    // Forward lock: always start exactly at the unlocked start point
-    this.audio.currentTime = this.startDurationSec;
+    // Always restart from the beginning of the song
+    this.audio.currentTime = 0;
 
-    this.audio.play().then(() => {
-      this.isPlayingState = true;
-      this.onPlayStateChangeCallback?.(true);
-      this.startPrecisionLoop();
-    }).catch(err => {
-      console.warn('Auto-play prevented or network issue:', err);
-      this.stop();
-    });
+    const playPromise = this.audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          this.isPlayingState = true;
+          this.onPlayStateChangeCallback?.(true);
+          this.startPrecisionLoop();
+        })
+        .catch(err => {
+          console.warn('Auto-play prevented or network issue:', err);
+          this.stop();
+        });
+    }
   }
 
-  togglePlay(startDurationSec?: number, maxDurationSec?: number) {
+  togglePlay(_startDurationSec: number = 0, maxDurationSec?: number) {
     if (this.isPlayingState) {
       this.stop();
     } else {
-      this.playSnippet(startDurationSec, maxDurationSec);
+      this.playSnippet(0, maxDurationSec);
     }
   }
 
@@ -108,11 +117,11 @@ export class SnippetAudioPlayer {
     }
     if (this.audio) {
       this.audio.pause();
-      this.audio.currentTime = this.startDurationSec;
+      this.audio.currentTime = 0;
     }
     this.isPlayingState = false;
     this.onPlayStateChangeCallback?.(false);
-    this.onTimeUpdateCallback?.(this.startDurationSec, 0);
+    this.onTimeUpdateCallback?.(0, 0);
   }
 
   private startPrecisionLoop() {
@@ -124,8 +133,7 @@ export class SnippetAudioPlayer {
       if (!this.audio || !this.isPlayingState) return;
 
       const current = this.audio.currentTime;
-      const range = Math.max(0.1, this.maxDurationSec - this.startDurationSec);
-      const progress = Math.min(1, Math.max(0, (current - this.startDurationSec) / range));
+      const progress = Math.min(1, Math.max(0, current / this.maxDurationSec));
       this.onTimeUpdateCallback?.(current, progress);
 
       if (current >= this.maxDurationSec) {

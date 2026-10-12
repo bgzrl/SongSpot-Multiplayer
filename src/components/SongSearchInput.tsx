@@ -82,11 +82,12 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   }, []);
 
   const handleSelectSong = (song: Song) => {
-    setSelectedSong(song);
-    setQuery(`${song.artist} - ${song.title}`);
+    if (disabled || hasGuessed) return;
+    onGuess(song, `${song.title} ${song.artist}`);
+    setSelectedSong(null);
+    setQuery('');
     setIsOpen(false);
     setResults([]);
-    inputRef.current?.focus();
   };
 
   const handleClearSelection = () => {
@@ -108,7 +109,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       setIsOpen(false);
       setResults([]);
     } else if (isOpen && results.length > 0 && selectedIndex >= 0 && selectedIndex < results.length) {
-      // If suggestions are visible and user hit submit, pick the highlighted suggestion!
+      // Pick the currently highlighted suggestion immediately!
       const song = results[selectedIndex];
       onGuess(song, `${song.title} ${song.artist}`);
       setSelectedSong(null);
@@ -116,24 +117,24 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       setIsOpen(false);
       setResults([]);
     } else if (query.trim().length >= 2) {
-      // Fallback: match first result or raw string
-      const raw = query.trim();
-      const firstMatch = results.find(
-        r => r.title.toLowerCase().includes(raw.toLowerCase()) || r.artist.toLowerCase().includes(raw.toLowerCase())
+      const raw = query.trim().toLowerCase();
+      // Strict title matching: only pick from results if the SONG TITLE matches what was typed
+      const titleMatch = results.find(
+        r => r.title.toLowerCase() === raw || r.title.toLowerCase().startsWith(raw)
       );
-      if (firstMatch) {
-        onGuess(firstMatch, `${firstMatch.title} ${firstMatch.artist}`);
+      if (titleMatch) {
+        onGuess(titleMatch, `${titleMatch.title} ${titleMatch.artist}`);
       } else {
         onGuess(
           {
             id: 'raw_guess',
-            title: raw,
-            artist: raw,
+            title: query.trim(),
+            artist: '',
             album: '',
             previewUrl: '',
             artwork: '',
           },
-          raw
+          query.trim()
         );
       }
       setSelectedSong(null);
@@ -232,11 +233,11 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
           {isOpen && results.length > 0 && !hasGuessed && (
             <div
               ref={dropdownRef}
-              className="absolute z-50 left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
+              className="absolute z-[100] left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700/80 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
             >
               <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
                 <span>Suggestions ({results.length})</span>
-                <span className="text-slate-400 text-xs lowercase">Entrée pour valider</span>
+                <span className="text-emerald-400 text-xs lowercase font-semibold">Cliquez ou Entrée pour valider</span>
               </div>
 
               {results.map((song, index) => {
@@ -287,7 +288,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >
-                      {isSelected ? 'Choisir ↵' : 'Choisir'}
+                      {isSelected ? 'Deviner ↵' : 'Deviner'}
                     </span>
                   </div>
                 );

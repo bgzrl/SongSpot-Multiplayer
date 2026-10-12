@@ -45,7 +45,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
   const myStep = me?.currentStep || 1;
   const hasGuessed = me?.hasGuessed || false;
   const currentHint = roomState.currentSongHint;
-  const steps = roomState.settings.snippetSteps || [0.2, 0.5, 1.5, 4.0, 9.0, 15.0];
+  const steps = roomState.settings.snippetSteps || [1.0, 2.0, 4.0, 7.0, 11.0, 16.0];
 
   // Volume state (persisted)
   const [volume, setVolume] = useState<number>(() => {
@@ -107,11 +107,10 @@ export const GameRound: React.FC<GameRoundProps> = ({
     );
 
     if (currentHint?.previewUrl) {
-      const startSec = 0;
-      const endSec = steps[0] || 0.2;
-      audioCtrl.load(currentHint.previewUrl, startSec, endSec);
+      const endSec = steps[0] || 1.0;
+      audioCtrl.load(currentHint.previewUrl, 0, endSec);
       // Auto play on new round start
-      audioCtrl.playSnippet(startSec, endSec);
+      audioCtrl.playSnippet(0, endSec);
     }
 
     return () => {
@@ -123,13 +122,12 @@ export const GameRound: React.FC<GameRoundProps> = ({
   useEffect(() => {
     if (playerRef.current && currentHint?.previewUrl) {
       if (!hasGuessed) {
-        const startSec = myStep > 1 ? steps[myStep - 2] : 0;
-        const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 0.2;
-        playerRef.current.setRange(startSec, endSec);
+        const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
+        playerRef.current.setRange(0, endSec);
 
-        // Auto-play the newly unlocked snippet so the player immediately hears the extra audio
+        // Auto-play the newly unlocked snippet from 0 so the player hears the full context
         if (myStep > 1) {
-          playerRef.current.playSnippet(startSec, endSec);
+          playerRef.current.playSnippet(0, endSec);
         }
       } else {
         playerRef.current.setRange(0, 30);
@@ -158,9 +156,8 @@ export const GameRound: React.FC<GameRoundProps> = ({
       playerRef.current.togglePlay(0, 30);
       return;
     }
-    const startSec = myStep > 1 ? steps[myStep - 2] : 0;
-    const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 0.2;
-    playerRef.current.togglePlay(startSec, endSec);
+    const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
+    playerRef.current.togglePlay(0, endSec);
   };
 
   const handleGuessSubmit = (song: Song, queryText: string) => {

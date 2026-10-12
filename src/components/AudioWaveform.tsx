@@ -62,7 +62,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             </span>
           ) : (
             <span className="text-slate-300 text-xs">
-              Extrait : <strong className="text-white font-semibold">{prevDuration}s à {currentMaxDuration}s</strong>
+              Extrait débloqué : <strong className="text-white font-semibold">0s à {currentMaxDuration}s</strong>
               <span className="text-slate-600 mx-2">·</span>
               <span className="text-slate-400">Étape {currentStep}/{steps.length}</span>
             </span>
@@ -181,7 +181,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
               ? 'Arrêter la lecture'
               : isRevealed
               ? 'Écouter le morceau complet (30s)'
-              : `Écouter l'extrait (${prevDuration}s ➔ ${currentMaxDuration}s)`
+              : `Écouter l'extrait (0s ➔ ${currentMaxDuration}s)`
           }
         >
           {isPlaying ? (

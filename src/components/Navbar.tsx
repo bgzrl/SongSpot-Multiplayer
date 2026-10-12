@@ -20,36 +20,25 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Logo Songspot moderne, pro et naturel */}
+          {/* Clean, authentic music brand mark */}
           <button
             onClick={onHomeClick}
             type="button"
-            className="flex items-center gap-3 text-left group transition-all cursor-pointer focus:outline-none"
-            title="Retour à l'accueil"
+            className="flex items-center gap-2.5 text-left group transition-all cursor-pointer focus:outline-none"
+            title="Accueil"
           >
-            <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-              <svg
-                className="w-5 h-5 text-slate-950"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                {/* 4 barres d'onde sonore stylisées et dynamiques */}
-                <rect x="3" y="8" width="3" height="8" rx="1.5" />
-                <rect x="8.5" y="3.5" width="3" height="17" rx="1.5" />
-                <rect x="14" y="6.5" width="3" height="11" rx="1.5" />
-                <rect x="19.5" y="9.5" width="3" height="5" rx="1.5" />
-              </svg>
+            <div className="relative w-8 h-8 rounded-full bg-slate-900 border border-slate-700/80 flex items-center justify-center shadow-md group-hover:border-emerald-500/60 transition-colors">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <div className="absolute inset-1 rounded-full border border-slate-700/50 pointer-events-none"></div>
             </div>
-            <div className="flex items-baseline">
-              <span className="font-extrabold text-xl tracking-tight text-white group-hover:text-emerald-400 transition-colors">
-                Songspot
+            <div className="flex items-center">
+              <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                SongSpot
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1 mb-0.5"></span>
             </div>
           </button>
 
-          {/* Onglets : Multijoueur & Solo (design segmenté sobre et soigné) */}
+          {/* Onglets : Multijoueur & Solo */}
           <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-xl shadow-inner">
             <button
               onClick={() => onTabChange('multiplayer')}
@@ -104,20 +93,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950">
-                <svg className="w-4 h-4 text-slate-950" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="3" y="8" width="3" height="8" rx="1.5" />
-                  <rect x="8.5" y="3.5" width="3" height="17" rx="1.5" />
-                  <rect x="14" y="6.5" width="3" height="11" rx="1.5" />
-                  <rect x="19.5" y="9.5" width="3" height="5" rx="1.5" />
-                </svg>
+              <div className="w-7 h-7 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
               </div>
               <h3 className="text-xl font-bold text-white">
-                Règles de Songspot
+                Règles du jeu
               </h3>
             </div>
             <p className="text-slate-400 text-xs sm:text-sm mb-5">
-              Le blind test musical ultra-rapide où chaque milliseconde compte.
+              Le blind test musical ultra-rapide où chaque fraction de seconde compte.
             </p>
 
             <div className="space-y-3 text-xs sm:text-sm text-slate-300">
@@ -125,9 +109,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-lg">⏱️</span>
                 <div>
                   <strong className="text-white block font-semibold mb-0.5">
-                    Extraits ultra-courts
+                    Extraits progressifs
                   </strong>
-                  Chaque manche démarre avec <strong>0.2 seconde</strong>. Si vous passez ou ratez, l’extrait s'allonge progressivement : 0.5s, 1.5s, 4s, 9s puis 15s.
+                  Chaque manche démarre avec <strong>1 seconde</strong> de musique. Si vous passez ou devinez faux, l'extrait s'allonge : 2s, 4s, 7s, 11s puis 16s.
                 </div>
               </div>
 

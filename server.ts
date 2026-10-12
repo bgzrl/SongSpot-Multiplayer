@@ -265,6 +265,37 @@ async function startServer() {
     res.json({ songs, count: songs.length });
   });
 
+  // Audio Proxy endpoint to bypass strict CORS / referrer policies in production
+  app.get('/api/music/proxy-audio', async (req, res) => {
+    const audioUrl = req.query.url as string;
+    if (!audioUrl || !audioUrl.startsWith('http')) {
+      return res.status(400).send('Invalid audio URL');
+    }
+
+    try {
+      const upstreamRes = await fetch(audioUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+        },
+      });
+
+      if (!upstreamRes.ok) {
+        return res.status(upstreamRes.status).send('Upstream audio fetch failed');
+      }
+
+      res.setHeader('Content-Type', upstreamRes.headers.get('content-type') || 'audio/mpeg');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      const arrayBuffer = await upstreamRes.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (err) {
+      console.warn('Audio proxy error:', err);
+      res.status(502).send('Error proxying audio');
+    }
+  });
+
   // WebSocket Server
   wss.on('connection', (ws: WebSocket) => {
     let currentRoomId: string | null = null;
@@ -299,7 +330,7 @@ async function startServer() {
               roundDurationSec: 45,
               playlistId: payload.playlistId || 'trending-gen-z',
               playlistName: payload.playlistName || '🔥 Tendances Gen Z & TikTok 2024-2026',
-              snippetSteps: [0.2, 0.5, 1.5, 4.0, 9.0, 15.0],
+              snippetSteps: [1.0, 2.0, 4.0, 7.0, 11.0, 16.0],
               customArtist: payload.customArtist || '',
             };
 

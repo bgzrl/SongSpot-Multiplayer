@@ -455,60 +455,65 @@ export async function getGameSongs(
     return shuffleArray(chosen).slice(0, count);
   }
 
-  // 2. Official Charts (Apple Top 100 France + Deezer Playlists)
+  // 2. Official Charts with strict year & genre filtering
   let pool: Song[] = [];
 
   if (playlistId === 'trending-gen-z') {
-    // Official Apple Top 100 France RSS + Deezer TikTok Hits
-    const [appleTop100, deezerTikTok, deezerChart] = await Promise.all([
-      loadAppleTopFranceRSS(),
-      loadDeezerPlaylist('playlist/706093485/tracks?limit=80'), // TikTok Hits France
-      loadDeezerPlaylist('chart/0/tracks?limit=80'), // Deezer Top Global
-    ]);
-    pool = [...appleTop100, ...deezerTikTok, ...deezerChart];
+    const rawRss = await loadAppleTopFranceRSS();
+    // Only keep tracks released in 2021 or later
+    const modernOnly = rawRss.filter(s => !s.year || s.year >= 2021);
+    const deezerChart = await loadDeezerPlaylist('chart/0/tracks?limit=60');
+    pool = [...modernOnly, ...deezerChart];
   } else if (playlistId === 'rap-fr-gen-z') {
     const [tracksTopFR, tracksRapFR] = await Promise.all([
-      loadDeezerPlaylist('playlist/1109890291/tracks?limit=80'), // Top France
-      loadDeezerPlaylist('playlist/1209673751/tracks?limit=80'), // Rap FR
+      loadDeezerPlaylist('playlist/53362031/tracks?limit=60'), // Les titres du moment
+      loadDeezerPlaylist('playlist/1209673751/tracks?limit=60'), // Rap FR
     ]);
     pool = [...tracksRapFR, ...tracksTopFR];
   } else if (playlistId === 'french-hits') {
     const [tracksTopFR, tracksVarFR] = await Promise.all([
       loadAppleTopFranceRSS(),
-      loadDeezerPlaylist('playlist/1306931615/tracks?limit=80'), // Variété FR
+      loadDeezerPlaylist('playlist/1306931615/tracks?limit=60'), // Variété FR
     ]);
     pool = [...tracksTopFR, ...tracksVarFR];
   } else if (playlistId === 'classics-80-90') {
-    pool = await loadDeezerPlaylist('playlist/1313621735/tracks?limit=80');
+    pool = await loadDeezerPlaylist('playlist/1313621735/tracks?limit=60');
   } else if (playlistId === 'nostalgia-2000s') {
-    pool = await loadDeezerPlaylist('playlist/1479458365/tracks?limit=80');
+    pool = await loadDeezerPlaylist('playlist/1479458365/tracks?limit=60');
   } else {
-    pool = await loadDeezerPlaylist('chart/0/tracks?limit=80');
+    pool = await loadDeezerPlaylist('chart/0/tracks?limit=60');
   }
 
-  // If online feeds returned tracks, pick diverse tracks (1 song per artist, no duplicates!)
-  if (pool.length >= count) {
-    return pickDiverseSongs(pool, count);
+  // Filter pool strictly for modern playlists
+  if (playlistId === 'trending-gen-z') {
+    pool = pool.filter(s => !s.year || s.year >= 2021);
   }
 
-  // Dynamic artist queries fallback
+  // If pool has enough diverse tracks, return them
+  if (pool.length >= count * 2) {
+    const picked = pickDiverseSongs(pool, count);
+    if (picked.length >= count) return picked;
+  }
+
+  // Curated iconic hit artists guarantee high-profile recognizable music
   const artistSets: Record<string, string[]> = {
     'trending-gen-z': [
-      'Sabrina Carpenter', 'Billie Eilish', 'Chappell Roan', 'Charli xcx', 'Kendrick Lamar',
-      'Tommy Richman', 'Benson Boone', 'Teddy Swims', 'Olivia Rodrigo', 'Tate McRae', 'Artemas', 'Dua Lipa',
+      'Gazo', 'SDM', 'Tiakola', 'Theodort', 'Jul', 'PLK', 'Werenoi',
+      'Sabrina Carpenter', 'Billie Eilish', 'Kendrick Lamar', 'Dua Lipa', 'The Weeknd',
+      'Carbonne', 'Yamê', 'Chappell Roan', 'Charli xcx', 'Benson Boone', 'Teddy Swims', 'Ninho',
     ],
     'rap-fr-gen-z': [
-      'Gazo', 'Tiakola', 'SDM', 'Werenoi', 'PLK', 'Jul', 'Theodort', 'Carbonne', 'Yamê', 'Ninho', 'Favé',
+      'Gazo', 'Tiakola', 'SDM', 'Werenoi', 'PLK', 'Jul', 'Theodort', 'Ninho',
+      'Carbonne', 'Yamê', 'Favé', 'Josman', 'Shay', 'Franglish', 'Zola',
     ],
-    'global-hits': ['The Weeknd', 'Taylor Swift', 'Dua Lipa', 'Bruno Mars', 'Ed Sheeran', 'Harry Styles', 'SZA'],
-    'french-hits': ['Stromae', 'Angèle', 'Pierre Garnier', 'Santa', 'Orelsan', 'Céline Dion', 'Indochine'],
+    'global-hits': ['The Weeknd', 'Taylor Swift', 'Dua Lipa', 'Bruno Mars', 'Billie Eilish', 'Sabrina Carpenter', 'Kendrick Lamar', 'SZA'],
+    'french-hits': ['Stromae', 'Angèle', 'Pierre Garnier', 'Santa', 'Orelsan', 'Céline Dion', 'Indochine', 'Gazo', 'Theodort'],
     'classics-80-90': ['Michael Jackson', 'Queen', 'Nirvana', 'ABBA', 'ACDC', 'Guns N Roses', 'a-ha'],
     'nostalgia-2000s': ['Britney Spears', 'Eminem', 'Black Eyed Peas', 'Lady Gaga', 'Shakira', 'Rihanna'],
     'electro-dance': ['Daft Punk', 'David Guetta', 'Avicii', 'Calvin Harris', 'Martin Garrix'],
   };
 
   const artists = artistSets[playlistId] || artistSets['trending-gen-z'];
-  // Pick exactly 1 song per random artist
   const shuffledArtists = shuffleArray([...artists]).slice(0, count);
   const fallbackSongs: Song[] = [];
 
