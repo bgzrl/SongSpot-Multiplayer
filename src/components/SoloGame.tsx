@@ -59,18 +59,25 @@ const INITIAL_STATS: SoloStats = {
   totalScore: 0,
 };
 
-function normalizeText(str: string): string {
-  if (!str) return '';
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\([^)]*\)/g, '')
-    .replace(/\[[^\]]*\]/g, '')
-    .replace(/feat\..*$/i, '')
-    .replace(/ft\..*$/i, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+export function extractCoreTitle(title: string): string {
+  if (!title) return '';
+  let t = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  t = t.replace(/\([^)]*\)/g, ' ');
+  t = t.replace(/\[[^\]]*\]/g, ' ');
+  t = t.replace(/\{[^}]*\}/g, ' ');
+  t = t.replace(
+    /\s*-\s*(feat|ft|featuring|with|remix|radio edit|edit|club mix|original mix|extended|live|acoustique|acoustic|version|bonus|instrumental|sped up|slowed|remastered|deluxe|double shot).*/i,
+    ' '
+  );
+  t = t.replace(/\b(feat|ft|featuring|with)\b.*$/i, ' ');
+  const dashIndex = t.indexOf('-');
+  if (dashIndex >= 2) {
+    const beforeDash = t.slice(0, dashIndex).trim();
+    if (beforeDash.length >= 2) {
+      t = beforeDash;
+    }
+  }
+  return t.replace(/[^a-z0-9]/g, '').trim();
 }
 
 export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
@@ -236,38 +243,74 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   const handleGuess = (song: Song, queryText: string) => {
     if (gameStatus !== 'playing' || !currentSong) return;
 
-    // Robust case-insensitive and diacritic matching strictly on song title
-    const cleanTargetTitle = normalizeText(currentSong.title);
-    const cleanTargetArtist = normalizeText(currentSong.artist);
-    const cleanGuessedTitle = normalizeText(song.title);
-    const cleanGuessedText = normalizeText(queryText || `${song.title} ${song.artist}`);
-
-    // If query text contains artist, strip artist to check title
-    let guessTextWithoutArtist = cleanGuessedText;
-    if (cleanTargetArtist && cleanTargetArtist.length >= 2 && cleanGuessedText.includes(cleanTargetArtist)) {
-      guessTextWithoutArtist = cleanGuessedText.replace(cleanTargetArtist, '');
-    }
-
-    // Must match the actual title of the song!
-    const isIdMatch =
-      Boolean(song.id &&
+    // 1. Direct ID match (unless raw guess)
+    const isIdMatch = Boolean(
+      song.id &&
       currentSong.id &&
       song.id !== 'raw_guess' &&
-      String(song.id) === String(currentSong.id));
-
-    const isTitleDirectMatch = Boolean(cleanGuessedTitle && cleanGuessedTitle === cleanTargetTitle);
-
-    const isQueryTitleMatch = Boolean(
-      guessTextWithoutArtist &&
-      guessTextWithoutArtist.length >= 2 &&
-      (guessTextWithoutArtist === cleanTargetTitle ||
-        (cleanTargetTitle.includes(guessTextWithoutArtist) &&
-          guessTextWithoutArtist.length >= Math.max(4, Math.floor(cleanTargetTitle.length * 0.75))) ||
-        (guessTextWithoutArtist.includes(cleanTargetTitle) &&
-          cleanTargetTitle.length >= Math.max(4, Math.floor(guessTextWithoutArtist.length * 0.75))))
+      String(song.id) === String(currentSong.id)
     );
 
-    const isMatch = isIdMatch || isTitleDirectMatch || isQueryTitleMatch;
+    const targetCore = extractCoreTitle(currentSong.title);
+
+    // 2. Explicit song title selected by the user in suggestion dropdown
+    let isTitleMatch = false;
+    if (song.title && song.id !== 'raw_guess') {
+      const guessCore = extractCoreTitle(song.title);
+      if (guessCore && guessCore === targetCore) {
+        isTitleMatch = true;
+      } else if (
+        guessCore &&
+        targetCore &&
+        guessCore.length >= 4 &&
+        targetCore.length >= 4 &&
+        (guessCore.startsWith(targetCore) || targetCore.startsWith(guessCore))
+      ) {
+        isTitleMatch = true;
+      }
+    }
+
+    // 3. Raw query match
+    let isRawMatch = false;
+    const rawCore = extractCoreTitle(queryText || song.title);
+    if (rawCore && rawCore === targetCore) {
+      isRawMatch = true;
+    } else {
+      // Strip artist tokens from raw query
+      const artistsInTarget = (currentSong.artist || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .split(/[,&/]|feat\.?|ft\.?|featuring|with/)
+        .map(a => a.replace(/[^a-z0-9]/g, '').trim())
+        .filter(a => a.length >= 2);
+
+      let stripped = rawCore;
+      for (const art of artistsInTarget) {
+        if (art.length >= 2 && stripped.includes(art)) {
+          stripped = stripped.replace(art, '');
+        }
+      }
+      if (stripped && stripped === targetCore) {
+        isRawMatch = true;
+      } else {
+        let textStripped = (queryText || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        for (const art of artistsInTarget) {
+          if (art.length >= 2 && textStripped.includes(art)) {
+            textStripped = textStripped.replace(art, ' ');
+          }
+        }
+        const textStrippedCore = extractCoreTitle(textStripped);
+        if (textStrippedCore && textStrippedCore === targetCore) {
+          isRawMatch = true;
+        }
+      }
+    }
+
+    const isMatch = isIdMatch || isTitleMatch || isRawMatch;
 
     if (isMatch) {
       // Won!

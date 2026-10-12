@@ -495,8 +495,14 @@ async function startServer() {
             const cp = room.players.get(playerId);
             if (!cp || cp.player.hasGuessed) return;
 
-            const { guessText, guessedTrackId, step } = payload;
-            const isMatch = checkGuessMatch(guessText, room.currentSong, guessedTrackId);
+            const { guessText, guessedTrackId, guessedSongTitle, guessedSongArtist, step } = payload;
+            const isMatch = checkGuessMatch(
+              guessText,
+              room.currentSong,
+              guessedTrackId,
+              guessedSongTitle,
+              guessedSongArtist
+            );
 
             if (isMatch) {
               const elapsedSec = (Date.now() - room.roundStartTime) / 1000;

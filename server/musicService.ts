@@ -109,35 +109,43 @@ export function isLegitSong(title: string, artist: string): boolean {
   const badPatterns = [
     /\btype\s*beat\b/i,
     /\btype\s*drill\b/i,
-    /\bbeat\b/i,
-    /\bprod\b/i,
+    /\bprod\s*by\b/i,
     /\bprod\./i,
     /\bproduced\s+by\b/i,
     /\bbeatmaker\b/i,
-    /\binstrumental\b/i,
+    /\bversion\s+karaoke\b/i,
+    /\bkaraoke\s+version\b/i,
     /\bkaraoke\b/i,
-    /\btribute\b/i,
-    /\bparody\b/i,
-    /\bcover\b/i,
-    /\bremake\b/i,
+    /\btribute\s+to\b/i,
     /\bbacking\s+track\b/i,
     /\bin\s+the\s+style\s+of\b/i,
     /\boriginally\s+performed\b/i,
-    /\bslowed/i,
-    /\breverb\b/i,
-    /\bsped\s*up\b/i,
+    /\bversion\s+instrumentale\b/i,
+    /\binstrumental\s+version\b/i,
+    /\bsample\s+pack\b/i,
     /\bfree\s+beat\b/i,
     /\bwav\s+leak\b/i,
-    /\bversion\s+instrumentale\b/i,
-    /\bsample\s+pack\b/i,
   ];
   return !badPatterns.some(re => re.test(title) || re.test(artist));
 }
 
-// In-memory cache for search queries and external feeds
 const searchCache = new Map<string, { timestamp: number; songs: Song[] }>();
 const playlistCache = new Map<string, { timestamp: number; songs: Song[] }>();
 const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
+
+export const activeGameSongsCache: Song[] = [];
+
+export function registerActiveGameSongs(songs: Song[]) {
+  for (const s of songs) {
+    if (!s || !s.title || !s.artist) continue;
+    if (!activeGameSongsCache.some(existing => existing.id === s.id)) {
+      activeGameSongsCache.push(s);
+    }
+  }
+  if (activeGameSongsCache.length > 250) {
+    activeGameSongsCache.splice(0, activeGameSongsCache.length - 250);
+  }
+}
 
 /**
  * Loads the official Apple Music / iTunes Top 100 Songs France JSON RSS feed
@@ -274,8 +282,11 @@ export async function loadDeezerPlaylist(endpoint: string): Promise<Song[]> {
 }
 
 /**
- * Searches music using free iTunes Search API + Deezer with strict type beat filtering
- * Case-insensitive, accent-insensitive search.
+ * High-Precision Multi-Source Hybrid Search Engine
+ * - Searches Active Game Pool & In-Memory Playlists first (ensures currently playing songs are always ranked #1)
+ * - Queries Deezer API & iTunes API in parallel
+ * - Ranks candidates using relevance scoring (exact titles, artist prefix, whole word matches)
+ * - Smart deduplication keeping highest-quality entries
  */
 export async function searchFreeMusic(query: string, limit = 15): Promise<Song[]> {
   const cleanQuery = query.trim().toLowerCase();
@@ -286,107 +297,229 @@ export async function searchFreeMusic(query: string, limit = 15): Promise<Song[]
     return cached.songs.slice(0, limit);
   }
 
-  // 1. Try iTunes with country=FR
-  try {
-    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&country=FR&entity=song&limit=${Math.max(limit * 2, 35)}`;
-    const response = await fetch(itunesUrl, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (Array.isArray(data.results) && data.results.length > 0) {
-        const songs: Song[] = [];
-        const seen = new Set<string>();
-
-        for (const item of data.results) {
-          if (!item.previewUrl || !item.trackName || !item.artistName) continue;
-          if (!isLegitSong(item.trackName, item.artistName)) continue;
-
-          const key = `${normalizeString(item.trackName)}-${normalizeString(item.artistName)}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-
-          const artwork = item.artworkUrl100
-            ? item.artworkUrl100.replace('100x100bb.jpg', '600x600bb.jpg').replace('100x100bb', '600x600bb')
-            : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
-
-          const year = item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined;
-
-          songs.push({
-            id: String(item.trackId || Math.random().toString(36).substring(2, 9)),
-            title: item.trackName,
-            artist: item.artistName,
-            album: item.collectionName || 'Single',
-            previewUrl: item.previewUrl,
-            artwork,
-            year,
-            genre: item.primaryGenreName || 'Musique',
-            appleMusicUrl: item.trackViewUrl,
-          });
-        }
-
-        if (songs.length > 0) {
-          searchCache.set(cleanQuery, { timestamp: Date.now(), songs });
-          return songs.slice(0, limit);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn(`iTunes search error for "${query}":`, err);
-  }
-
-  // 2. Deezer API search fallback
-  try {
-    const deezerUrl = `https://api.deezer.com/search?q=${encodeURIComponent(cleanQuery)}&limit=${Math.max(limit * 2, 25)}`;
-    const deezerRes = await fetch(deezerUrl, { signal: AbortSignal.timeout(4500) });
-    if (deezerRes.ok) {
-      const dData = await deezerRes.json();
-      if (Array.isArray(dData.data) && dData.data.length > 0) {
-        const dSongs: Song[] = dData.data
-          .filter((t: any) => t.preview && t.title && t.artist?.name && isLegitSong(t.title, t.artist.name))
-          .map((t: any) => ({
-            id: `dz-${t.id}`,
-            title: t.title,
-            artist: t.artist?.name || 'Artiste',
-            album: t.album?.title || '',
-            previewUrl: t.preview,
-            artwork: t.album?.cover_xl || t.album?.cover_medium || '',
-            year: undefined,
-            genre: 'Musique',
-          }));
-
-        if (dSongs.length > 0) {
-          searchCache.set(cleanQuery, { timestamp: Date.now(), songs: dSongs });
-          return dSongs.slice(0, limit);
-        }
-      }
-    }
-  } catch (dErr) {
-    console.warn('Deezer fallback error:', dErr);
-  }
-
-  // 3. Fallback to cached playlist tracks if remote APIs fail or return 0 results
   const normQ = normalizeString(cleanQuery);
-  const cachedMatches: Song[] = [];
+  const coreQ = extractCoreTitle(cleanQuery);
+  const queryTokens = cleanQuery
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[\s,+'"-_/]+/)
+    .map(t => t.replace(/[^a-z0-9]/g, ''))
+    .filter(t => t.length >= 2);
+
+  interface ScoredCandidate {
+    song: Song;
+    score: number;
+    source: 'in_memory' | 'deezer' | 'itunes';
+  }
+
+  const rawCandidates: ScoredCandidate[] = [];
+
+  // 1. Scan in-memory playlists and active tracks (Priority 0)
+  const allInMemorySongs: Song[] = [...activeGameSongsCache];
   for (const [, cacheItem] of playlistCache.entries()) {
-    for (const s of cacheItem.songs) {
-      if (
-        isLegitSong(s.title, s.artist) &&
-        (normalizeString(s.title).includes(normQ) || normalizeString(s.artist).includes(normQ))
-      ) {
-        if (!cachedMatches.some(m => m.id === s.id)) {
-          cachedMatches.push(s);
+    allInMemorySongs.push(...cacheItem.songs);
+  }
+
+  for (const s of allInMemorySongs) {
+    if (!s.title || !s.artist) continue;
+    const sNormTitle = normalizeString(s.title);
+    const sCoreTitle = extractCoreTitle(s.title);
+    const sNormArtist = normalizeString(s.artist);
+
+    let matched = false;
+    let memScore = 180; // In-memory active game track boost
+
+    if (sCoreTitle === coreQ || sNormTitle === normQ) {
+      memScore += 350;
+      matched = true;
+    } else if (sNormTitle.startsWith(normQ) || sCoreTitle.startsWith(coreQ)) {
+      memScore += 220;
+      matched = true;
+    } else if (sNormArtist === normQ || sNormArtist.startsWith(normQ)) {
+      memScore += 180;
+      matched = true;
+    } else if (sNormTitle.includes(normQ) || sNormArtist.includes(normQ)) {
+      memScore += 120;
+      matched = true;
+    } else if (
+      queryTokens.length >= 2 &&
+      queryTokens.every(tok => sNormTitle.includes(tok) || sNormArtist.includes(tok))
+    ) {
+      memScore += 280;
+      matched = true;
+    }
+
+    if (matched) {
+      rawCandidates.push({ song: s, score: memScore, source: 'in_memory' });
+    }
+  }
+
+  // 2. Query Deezer API & iTunes API in parallel (Concurrently with timeout)
+  const [deezerResult, itunesResult] = await Promise.allSettled([
+    (async () => {
+      const url = `https://api.deezer.com/search?q=${encodeURIComponent(cleanQuery)}&limit=30`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json.data) ? json.data : [];
+    })(),
+    (async () => {
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&country=FR&entity=song&limit=30`;
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json.results) ? json.results : [];
+    })(),
+  ]);
+
+  // Process Deezer results
+  if (deezerResult.status === 'fulfilled') {
+    for (const item of deezerResult.value) {
+      if (!item.preview || !item.title || !item.artist?.name) continue;
+      if (!isLegitSong(item.title, item.artist.name)) continue;
+
+      const song: Song = {
+        id: `dz_${item.id}`,
+        title: item.title,
+        artist: item.artist.name,
+        album: item.album?.title || '',
+        previewUrl: item.preview,
+        artwork: item.album?.cover_xl || item.album?.cover_medium || item.artist?.picture_big || '',
+        year: undefined,
+        genre: 'Musique',
+      };
+
+      rawCandidates.push({
+        song,
+        score: (item.rank ? Math.min(50, Math.floor(item.rank / 25000)) : 0),
+        source: 'deezer',
+      });
+    }
+  }
+
+  // Process iTunes results
+  if (itunesResult.status === 'fulfilled') {
+    for (const item of itunesResult.value) {
+      if (!item.previewUrl || !item.trackName || !item.artistName) continue;
+      if (!isLegitSong(item.trackName, item.artistName)) continue;
+
+      const artwork = item.artworkUrl100
+        ? item.artworkUrl100.replace('100x100bb.jpg', '600x600bb.jpg').replace('100x100bb', '600x600bb')
+        : '';
+      const year = item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined;
+
+      const song: Song = {
+        id: String(item.trackId || Math.random().toString(36).substring(2, 9)),
+        title: item.trackName,
+        artist: item.artistName,
+        album: item.collectionName || 'Single',
+        previewUrl: item.previewUrl,
+        artwork: artwork || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+        year,
+        genre: item.primaryGenreName || 'Musique',
+        appleMusicUrl: item.trackViewUrl,
+      };
+
+      rawCandidates.push({
+        song,
+        score: 0,
+        source: 'itunes',
+      });
+    }
+  }
+
+  // 3. Relevance Scoring and Smart Deduplication
+  const scoredResults: ScoredCandidate[] = [];
+  const seenMap = new Map<string, number>();
+
+  for (const candidate of rawCandidates) {
+    const { song } = candidate;
+    const targetNormTitle = normalizeString(song.title);
+    const targetCoreTitle = extractCoreTitle(song.title);
+    const targetNormArtist = normalizeString(song.artist);
+
+    // Deduplication Key (by core title + first 6 chars of artist)
+    const dedupeKey = `${targetCoreTitle}_${targetNormArtist.slice(0, 7)}`;
+
+    let score = candidate.score;
+
+    // Bad/Tribute/Parody title or artist penalty
+    if (/(karaoke|tribute|tributo|in the style of|originally performed|backing track)/i.test(`${song.title} ${song.artist}`)) {
+      score -= 400;
+    }
+    if (/(parodie|parody|fortnite|fan made|roblox|remake)/i.test(song.title)) {
+      score -= 350;
+    }
+    if (/remix/i.test(song.title) && !/remix/i.test(cleanQuery)) {
+      score -= 150;
+    }
+    // Third-party channel uploading "Artist - Title (Remix)"
+    if (/\s+-\s+/.test(song.title) && !song.title.toLowerCase().includes(song.artist.toLowerCase())) {
+      score -= 180;
+    }
+
+    // 1. Core title exact match
+    if (targetCoreTitle === coreQ) {
+      score += 350;
+    } else if (targetNormTitle === normQ) {
+      score += 300;
+    } else if (targetCoreTitle.startsWith(coreQ) || targetNormTitle.startsWith(normQ)) {
+      score += 190;
+    } else if (targetNormTitle.includes(normQ)) {
+      score += 90;
+    }
+
+    // 2. Artist exact or prefix match
+    if (targetNormArtist === normQ) {
+      score += 280;
+    } else if (targetNormArtist.startsWith(normQ)) {
+      score += 180;
+    } else if (targetNormArtist.includes(normQ)) {
+      score += 70;
+    }
+
+    // 3. Multi-token queries (e.g. "gazo die", "theodort wayeh", "spider gims")
+    if (queryTokens.length >= 2) {
+      const allFound = queryTokens.every(
+        tok => targetNormTitle.includes(tok) || targetNormArtist.includes(tok)
+      );
+      if (allFound) {
+        score += 320;
+        // If the artist field actually contains or equals one of the tokens, reward official artist
+        if (queryTokens.some(tok => targetNormArtist === tok || targetNormArtist.startsWith(tok))) {
+          score += 200;
         }
       }
     }
-  }
-  if (cachedMatches.length > 0) {
-    return cachedMatches.slice(0, limit);
+
+    // Keep highest scoring version for duplicate tracks
+    const existingScore = seenMap.get(dedupeKey);
+    if (existingScore !== undefined) {
+      if (score > existingScore) {
+        seenMap.set(dedupeKey, score);
+        const idx = scoredResults.findIndex(r => `${extractCoreTitle(r.song.title)}_${normalizeString(r.song.artist).slice(0, 7)}` === dedupeKey);
+        if (idx !== -1) {
+          scoredResults[idx] = { song, score, source: candidate.source };
+        }
+      }
+    } else {
+      seenMap.set(dedupeKey, score);
+      scoredResults.push({ song, score, source: candidate.source });
+    }
   }
 
-  return [];
+  // 4. Sort strictly by relevance score descending
+  scoredResults.sort((a, b) => b.score - a.score);
+
+  const finalSongs = scoredResults.slice(0, limit).map(r => r.song);
+  if (finalSongs.length > 0) {
+    searchCache.set(cleanQuery, { timestamp: Date.now(), songs: finalSongs });
+  }
+
+  return finalSongs;
 }
 
 /**
@@ -452,47 +585,65 @@ export async function getGameSongs(
     });
 
     const chosen = strictlyByArtist.length >= 3 ? strictlyByArtist : artistSongs;
-    return shuffleArray(chosen).slice(0, count);
+    const shuffledArtistSongs = shuffleArray(chosen).slice(0, count);
+    registerActiveGameSongs(shuffledArtistSongs);
+    return shuffledArtistSongs;
   }
 
-  // 2. Official Charts with strict year & genre filtering
+  // 2. Official Charts with strict genre and year filtering
   let pool: Song[] = [];
 
   if (playlistId === 'trending-gen-z') {
-    const rawRss = await loadAppleTopFranceRSS();
-    // Only keep tracks released in 2021 or later
-    const modernOnly = rawRss.filter(s => !s.year || s.year >= 2021);
-    const deezerChart = await loadDeezerPlaylist('chart/0/tracks?limit=60');
-    pool = [...modernOnly, ...deezerChart];
-  } else if (playlistId === 'rap-fr-gen-z') {
-    const [tracksTopFR, tracksRapFR] = await Promise.all([
-      loadDeezerPlaylist('playlist/53362031/tracks?limit=60'), // Les titres du moment
-      loadDeezerPlaylist('playlist/1209673751/tracks?limit=60'), // Rap FR
+    const [tracksMoment, tracksTikTok] = await Promise.all([
+      loadDeezerPlaylist('playlist/53362031/tracks?limit=60'), // Les titres du moment (60 tracks)
+      loadDeezerPlaylist('playlist/1082651151/tracks?limit=60'), // TikTok Hits France (60 tracks)
     ]);
-    pool = [...tracksRapFR, ...tracksTopFR];
-  } else if (playlistId === 'french-hits') {
-    const [tracksTopFR, tracksVarFR] = await Promise.all([
-      loadAppleTopFranceRSS(),
-      loadDeezerPlaylist('playlist/1306931615/tracks?limit=60'), // Variété FR
-    ]);
-    pool = [...tracksTopFR, ...tracksVarFR];
-  } else if (playlistId === 'classics-80-90') {
-    pool = await loadDeezerPlaylist('playlist/1313621735/tracks?limit=60');
-  } else if (playlistId === 'nostalgia-2000s') {
-    pool = await loadDeezerPlaylist('playlist/1479458365/tracks?limit=60');
-  } else {
-    pool = await loadDeezerPlaylist('chart/0/tracks?limit=60');
-  }
-
-  // Filter pool strictly for modern playlists
-  if (playlistId === 'trending-gen-z') {
+    pool = [...tracksMoment, ...tracksTikTok];
+    // Filter modern tracks only
     pool = pool.filter(s => !s.year || s.year >= 2021);
+  } else if (playlistId === 'rap-fr-gen-z') {
+    const [tracksActuRap, tracksRap2024] = await Promise.all([
+      loadDeezerPlaylist('playlist/1071669561/tracks?limit=80'), // Actu Rap FR (Narjes - Deezer Rap Editor)
+      loadDeezerPlaylist('playlist/13154564983/tracks?limit=75'), // Rap Français 2024
+    ]);
+    pool = [...tracksActuRap, ...tracksRap2024];
+  } else if (playlistId === 'french-hits') {
+    const [tracksBleuBlanc, tracksVariete] = await Promise.all([
+      loadDeezerPlaylist('playlist/1189520191/tracks?limit=60'), // Bleu Blanc Hits
+      loadDeezerPlaylist('playlist/788022051/tracks?limit=50'), // Les Variétés françaises
+    ]);
+    pool = [...tracksBleuBlanc, ...tracksVariete];
+  } else if (playlistId === 'classics-80-90') {
+    const [tracks80s, tracksSoiree] = await Promise.all([
+      loadDeezerPlaylist('playlist/867825522/tracks?limit=80'), // 80s Hits (Deezer Pop Editor)
+      loadDeezerPlaylist('playlist/1743878062/tracks?limit=50'), // Soirée 80
+    ]);
+    pool = [...tracks80s, ...tracksSoiree];
+  } else if (playlistId === 'nostalgia-2000s') {
+    const [tracks2000, tracksTop2000] = await Promise.all([
+      loadDeezerPlaylist('playlist/751764391/tracks?limit=60'), // En mode 2000
+      loadDeezerPlaylist('playlist/11837091441/tracks?limit=80'), // Top Hits 2000
+    ]);
+    pool = [...tracks2000, ...tracksTop2000];
+  } else if (playlistId === 'global-hits') {
+    const [tracksGlobal, tracksTopWorld] = await Promise.all([
+      loadDeezerPlaylist('playlist/2098157264/tracks?limit=60'), // Global Hits
+      loadDeezerPlaylist('playlist/3155776842/tracks?limit=60'), // Top Worldwide
+    ]);
+    pool = [...tracksGlobal, ...tracksTopWorld];
+  } else if (playlistId === 'electro-dance') {
+    pool = await loadDeezerPlaylist('playlist/706093725/tracks?limit=60'); // Global Dance Hits
+  } else {
+    pool = await loadDeezerPlaylist('playlist/53362031/tracks?limit=60');
   }
 
   // If pool has enough diverse tracks, return them
   if (pool.length >= count * 2) {
     const picked = pickDiverseSongs(pool, count);
-    if (picked.length >= count) return picked;
+    if (picked.length >= count) {
+      registerActiveGameSongs(picked);
+      return picked;
+    }
   }
 
   // Curated iconic hit artists guarantee high-profile recognizable music
@@ -525,11 +676,15 @@ export async function getGameSongs(
   }
 
   if (fallbackSongs.length >= 3) {
-    return shuffleArray(fallbackSongs).slice(0, count);
+    const shuffledFallback = shuffleArray(fallbackSongs).slice(0, count);
+    registerActiveGameSongs(shuffledFallback);
+    return shuffledFallback;
   }
 
   // Emergency seed fallback
-  return pickDiverseSongs(SEED_TRACKS[playlistId] || SEED_TRACKS['trending-gen-z'] || [], count);
+  const seeds = pickDiverseSongs(SEED_TRACKS[playlistId] || SEED_TRACKS['trending-gen-z'] || [], count);
+  registerActiveGameSongs(seeds);
+  return seeds;
 }
 
 /**
@@ -551,29 +706,55 @@ export function normalizeString(str: string): string {
     .trim();
 }
 
-function cleanTitleForComparison(title: string): string {
+/**
+ * Extracts the core musical title by stripping features, remix tags,
+ * radio edit, version, album descriptors, and non-alphanumeric noise.
+ */
+export function extractCoreTitle(title: string): string {
   if (!title) return '';
-  return title
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\([^)]*\)/g, '')
-    .replace(/\[[^\]]*\]/g, '')
-    .replace(/feat\..*$/i, '')
-    .replace(/ft\..*$/i, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+  let t = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // 1. Remove parenthesized or bracketed descriptions: (feat. X), [Remix], {Live}, etc.
+  t = t.replace(/\([^)]*\)/g, ' ');
+  t = t.replace(/\[[^\]]*\]/g, ' ');
+  t = t.replace(/\{[^}]*\}/g, ' ');
+
+  // 2. Remove standard track descriptor suffixes: " - Radio Edit", " - Remix", " - Double Shot", etc.
+  t = t.replace(
+    /\s*-\s*(feat|ft|featuring|with|remix|radio edit|edit|club mix|original mix|extended|live|acoustique|acoustic|version|bonus|instrumental|sped up|slowed|remastered|deluxe|double shot).*/i,
+    ' '
+  );
+
+  // 3. Remove inline feat/ft without brackets
+  t = t.replace(/\b(feat|ft|featuring|with)\b.*$/i, ' ');
+
+  // 4. If a hyphen/dash remains after the main title (e.g. "Spider - Gims"), keep preceding title
+  const dashIndex = t.indexOf('-');
+  if (dashIndex >= 2) {
+    const beforeDash = t.slice(0, dashIndex).trim();
+    if (beforeDash.length >= 2) {
+      t = beforeDash;
+    }
+  }
+
+  // 5. Clean punctuation and spaces
+  return t.replace(/[^a-z0-9]/g, '').trim();
 }
 
 /**
- * Validates a guess: MUST match the song's title.
- * In a music blind test, simply entering the artist or another track by the same artist is NOT a correct guess.
+ * Validates a guess: MUST match the song's actual title.
+ * - Handles remixes, radio edits, feats, and diacritics.
+ * - Supports explicit track title passed from the search dropdown.
+ * - Strictly rejects entering another song by the same artist or just the artist name.
  */
 export function checkGuessMatch(
   guessText: string,
   targetSong: Song,
-  guessedTrackId?: string
+  guessedTrackId?: string,
+  guessedSongTitle?: string,
+  _guessedSongArtist?: string
 ): boolean {
+  // 1. Exact ID match (unless raw guess)
   if (
     guessedTrackId &&
     guessedTrackId !== 'raw_guess' &&
@@ -582,51 +763,58 @@ export function checkGuessMatch(
     return true;
   }
 
-  const cleanTargetTitle = cleanTitleForComparison(targetSong.title);
-  if (!cleanTargetTitle || cleanTargetTitle.length < 2) return false;
+  const targetCore = extractCoreTitle(targetSong.title);
+  if (!targetCore || targetCore.length < 2) return false;
 
-  const cleanGuess = cleanTitleForComparison(guessText);
-  if (!cleanGuess || cleanGuess.length < 2) return false;
-
-  // 1. Direct title exact match
-  if (cleanGuess === cleanTargetTitle) return true;
-
-  // 2. If the guess contains the artist name, strip the artist to extract the candidate title
-  const cleanArtist = cleanTitleForComparison(targetSong.artist);
-  let guessWithoutArtist = cleanGuess;
-  if (cleanArtist && cleanArtist.length >= 2 && cleanGuess.includes(cleanArtist)) {
-    guessWithoutArtist = cleanGuess.replace(cleanArtist, '');
-  }
-
-  if (guessWithoutArtist && guessWithoutArtist.length >= 2) {
-    if (guessWithoutArtist === cleanTargetTitle) return true;
+  // 2. Explicit song title selected by the user in the suggestion dropdown
+  if (guessedSongTitle) {
+    const guessCore = extractCoreTitle(guessedSongTitle);
+    if (guessCore && guessCore === targetCore) return true;
     if (
-      cleanTargetTitle.includes(guessWithoutArtist) &&
-      guessWithoutArtist.length >= Math.max(4, Math.floor(cleanTargetTitle.length * 0.75))
-    ) {
-      return true;
-    }
-    if (
-      guessWithoutArtist.includes(cleanTargetTitle) &&
-      cleanTargetTitle.length >= Math.max(4, Math.floor(guessWithoutArtist.length * 0.75))
+      guessCore &&
+      targetCore &&
+      guessCore.length >= 4 &&
+      targetCore.length >= 4 &&
+      (guessCore.startsWith(targetCore) || targetCore.startsWith(guessCore))
     ) {
       return true;
     }
   }
 
-  // 3. Fallback: lenient substring match on title only (if guess covers at least 75% of the title)
-  if (
-    cleanTargetTitle.includes(cleanGuess) &&
-    cleanGuess.length >= Math.max(4, Math.floor(cleanTargetTitle.length * 0.75))
-  ) {
-    return true;
+  // 3. Direct match on cleaned raw query
+  const rawCore = extractCoreTitle(guessText);
+  if (rawCore && rawCore === targetCore) return true;
+
+  // 4. If raw guess text contains artist names, strip artist tokens and re-check title
+  const artistsInTarget = (targetSong.artist || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[,&/]|feat\.?|ft\.?|featuring|with/)
+    .map(a => a.replace(/[^a-z0-9]/g, '').trim())
+    .filter(a => a.length >= 2);
+
+  let stripped = rawCore;
+  for (const art of artistsInTarget) {
+    if (art.length >= 2 && stripped.includes(art)) {
+      stripped = stripped.replace(art, '');
+    }
   }
-  if (
-    cleanGuess.includes(cleanTargetTitle) &&
-    cleanTargetTitle.length >= Math.max(4, Math.floor(cleanGuess.length * 0.75))
-  ) {
-    return true;
+
+  if (stripped && stripped === targetCore) return true;
+
+  // 5. Check if raw query text with artist words removed yields target core
+  let textStripped = (guessText || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  for (const art of artistsInTarget) {
+    if (art.length >= 2 && textStripped.includes(art)) {
+      textStripped = textStripped.replace(art, ' ');
+    }
   }
+  const textStrippedCore = extractCoreTitle(textStripped);
+  if (textStrippedCore && textStrippedCore === targetCore) return true;
 
   return false;
 }

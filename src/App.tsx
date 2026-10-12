@@ -58,6 +58,24 @@ export default function App() {
   const [selectedLobbyPlaylist, setSelectedLobbyPlaylist] = useState('trending-gen-z');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);
+  const [volume, setVolume] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('songspot_volume');
+      return saved !== null ? parseFloat(saved) || 0.8 : 0.8;
+    } catch {
+      return 0.8;
+    }
+  });
+
+  const handleVolumeChange = (newVol: number) => {
+    const clamped = Math.max(0, Math.min(1, newVol));
+    setVolume(clamped);
+    try {
+      localStorage.setItem('songspot_volume', clamped.toString());
+    } catch {
+      // ignore
+    }
+  };
 
   // Save profile changes
   useEffect(() => {
@@ -315,6 +333,8 @@ export default function App() {
       payload: {
         guessText: queryText,
         guessedTrackId: song.id,
+        guessedSongTitle: song.title,
+        guessedSongArtist: song.artist,
         step,
       },
     }));
@@ -438,6 +458,8 @@ export default function App() {
                 totalRounds={roomState.totalRounds}
                 isHost={roomState.hostId === playerId}
                 onNextRound={handleNextRound}
+                volume={volume}
+                onVolumeChange={handleVolumeChange}
               />
             )}
 

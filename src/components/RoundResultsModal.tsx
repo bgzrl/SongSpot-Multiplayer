@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Song, RoundScoreRecord } from '../types/game';
-import { Play, Square, Award, Disc3, ExternalLink, Trophy, CheckCircle2, XCircle } from 'lucide-react';
+import { Play, Square, Award, Disc3, ExternalLink, Trophy, CheckCircle2, XCircle, Volume2, Volume1, VolumeX } from 'lucide-react';
 
 interface RoundResultsModalProps {
   song: Song;
@@ -9,6 +9,8 @@ interface RoundResultsModalProps {
   totalRounds: number;
   isHost: boolean;
   onNextRound?: () => void;
+  volume?: number;
+  onVolumeChange?: (vol: number) => void;
 }
 
 export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
@@ -18,10 +20,31 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
   totalRounds,
   isHost,
   onNextRound,
+  volume,
+  onVolumeChange,
 }) => {
   const [isPlayingFull, setIsPlayingFull] = useState(false);
   const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(5);
+  const [currentVolume, setCurrentVolume] = useState<number>(() => {
+    if (typeof volume === 'number' && !isNaN(volume)) return volume;
+    try {
+      const saved = localStorage.getItem('songspot_volume');
+      return saved !== null ? parseFloat(saved) || 0.8 : 0.8;
+    } catch {
+      return 0.8;
+    }
+  });
+
+  // Sync when prop volume changes
+  useEffect(() => {
+    if (typeof volume === 'number' && !isNaN(volume)) {
+      setCurrentVolume(volume);
+      if (audioEl) {
+        audioEl.volume = volume;
+      }
+    }
+  }, [volume, audioEl]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -32,8 +55,17 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
 
   useEffect(() => {
     const audio = new Audio(song.previewUrl);
-    audio.volume = 0.8;
+    // Preserves the exact volume set on the potard!
+    audio.volume = currentVolume;
     audio.addEventListener('ended', () => setIsPlayingFull(false));
+    audio.addEventListener('error', () => {
+      // Fallback via proxy if needed
+      if (!song.previewUrl.includes('/api/music/proxy-audio')) {
+        audio.src = `/api/music/proxy-audio?url=${encodeURIComponent(song.previewUrl)}`;
+        audio.load();
+        audio.play().then(() => setIsPlayingFull(true)).catch(() => {});
+      }
+    });
     setAudioEl(audio);
 
     // Auto-play the full 30s track on reveal
@@ -45,6 +77,20 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
     };
   }, [song]);
 
+  const handleSliderVolumeChange = (newVol: number) => {
+    const clamped = Math.max(0, Math.min(1, newVol));
+    setCurrentVolume(clamped);
+    if (audioEl) {
+      audioEl.volume = clamped;
+    }
+    try {
+      localStorage.setItem('songspot_volume', clamped.toString());
+    } catch {
+      // ignore
+    }
+    onVolumeChange?.(clamped);
+  };
+
   const toggleFullPlay = () => {
     if (!audioEl) return;
     if (isPlayingFull) {
@@ -55,18 +101,49 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
     }
   };
 
+  const volumePercent = Math.round(currentVolume * 100);
+
   return (
     <div className="w-full bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300">
-      {/* Round banner */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+      {/* Round banner with Potard de son */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-800 pb-4 mb-6 gap-3">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-amber-400" />
           <span className="text-xs uppercase tracking-wider font-bold text-amber-400">
             Révélation Manche {currentRound} / {totalRounds}
           </span>
         </div>
-        <div className="text-xs text-slate-400 font-medium">
-          {currentRound >= totalRounds ? 'Fin de la partie imminente...' : 'Manche suivante bientôt...'}
+
+        {/* Volume slider potard */}
+        <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-2xl border border-slate-800 self-end sm:self-auto">
+          <button
+            onClick={() => handleSliderVolumeChange(currentVolume > 0 ? 0 : 0.8)}
+            type="button"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title={currentVolume === 0 ? 'Activer le son' : 'Couper le son'}
+          >
+            {currentVolume === 0 ? (
+              <VolumeX className="w-4 h-4 text-rose-400" />
+            ) : currentVolume < 0.5 ? (
+              <Volume1 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-emerald-400" />
+            )}
+          </button>
+
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={volumePercent}
+            onChange={(e) => handleSliderVolumeChange(Number(e.target.value) / 100)}
+            className="w-20 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            title={`Volume : ${volumePercent}%`}
+          />
+
+          <span className="tabular-nums text-xs font-semibold text-slate-300 w-8 text-right">
+            {volumePercent}%
+          </span>
         </div>
       </div>
 

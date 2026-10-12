@@ -44,12 +44,12 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/music/search?q=${encodeURIComponent(trimmed)}&limit=10`);
+        const res = await fetch(`/api/music/search?q=${encodeURIComponent(trimmed)}&limit=15`);
         if (res.ok && currentSeq === searchSeqRef.current) {
           const data: Song[] = await res.json();
           if (currentSeq === searchSeqRef.current) {
             setResults(data);
-            setIsOpen(data.length > 0);
+            setIsOpen(true);
             setSelectedIndex(0); // Auto-highlight first suggestion for quick Enter key
           }
         }
@@ -60,7 +60,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
           setLoading(false);
         }
       }
-    }, 150);
+    }, 100);
 
     return () => clearTimeout(timer);
   }, [query, selectedSong]);
@@ -108,35 +108,35 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       setQuery('');
       setIsOpen(false);
       setResults([]);
-    } else if (isOpen && results.length > 0 && selectedIndex >= 0 && selectedIndex < results.length) {
-      // Pick the currently highlighted suggestion immediately!
-      const song = results[selectedIndex];
-      onGuess(song, `${song.title} ${song.artist}`);
-      setSelectedSong(null);
-      setQuery('');
-      setIsOpen(false);
-      setResults([]);
-    } else if (query.trim().length >= 2) {
-      const raw = query.trim().toLowerCase();
-      // Strict title matching: only pick from results if the SONG TITLE matches what was typed
-      const titleMatch = results.find(
-        r => r.title.toLowerCase() === raw || r.title.toLowerCase().startsWith(raw)
-      );
-      if (titleMatch) {
-        onGuess(titleMatch, `${titleMatch.title} ${titleMatch.artist}`);
-      } else {
-        onGuess(
-          {
-            id: 'raw_guess',
-            title: query.trim(),
-            artist: '',
-            album: '',
-            previewUrl: '',
-            artwork: '',
-          },
-          query.trim()
-        );
+      return;
+    }
+
+    // If suggestions are available, pick the highlighted or #1 ranked suggestion
+    if (results.length > 0) {
+      const bestSong = results[selectedIndex >= 0 && selectedIndex < results.length ? selectedIndex : 0];
+      if (bestSong) {
+        onGuess(bestSong, `${bestSong.title} ${bestSong.artist}`);
+        setSelectedSong(null);
+        setQuery('');
+        setIsOpen(false);
+        setResults([]);
+        return;
       }
+    }
+
+    // Direct text submission fallback
+    if (query.trim().length >= 2) {
+      onGuess(
+        {
+          id: 'raw_guess',
+          title: query.trim(),
+          artist: '',
+          album: '',
+          previewUrl: '',
+          artwork: '',
+        },
+        query.trim()
+      );
       setSelectedSong(null);
       setQuery('');
       setIsOpen(false);
@@ -158,12 +158,8 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
         return;
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        // If user hits Enter while dropdown is open, select the highlighted suggestion
-        const songToSelect = results[selectedIndex >= 0 ? selectedIndex : 0];
-        if (songToSelect) {
-          handleSelectSong(songToSelect);
-          return;
-        }
+        handleSubmit();
+        return;
       } else if (e.key === 'Escape') {
         setIsOpen(false);
         return;
@@ -247,69 +243,82 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       </form>
 
       {/* Autocomplete Dropdown spans full container width */}
-      {isOpen && results.length > 0 && !hasGuessed && (
+      {isOpen && !hasGuessed && query.trim().length >= 2 && (
         <div
           ref={dropdownRef}
           className="absolute z-[100] left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700/80 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
         >
-          <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
-            <span>Suggestions ({results.length})</span>
-            <span className="text-emerald-400 text-xs lowercase font-semibold">Cliquez ou Entrée pour valider</span>
-          </div>
-
-          {results.map((song, index) => {
-            const isSelected = index === selectedIndex;
-            return (
-              <div
-                key={song.id || index}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelectSong(song);
-                }}
-                onMouseEnter={() => setSelectedIndex(index)}
-                className={`w-full flex items-center gap-3.5 p-3 text-left transition-colors cursor-pointer select-none ${
-                  isSelected
-                    ? 'bg-emerald-500/20 text-white'
-                    : 'hover:bg-slate-800/70 text-slate-200'
-                }`}
-              >
-                <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-slate-800 shrink-0 border border-slate-700/50">
-                  {song.artwork ? (
-                    <img
-                      src={song.artwork}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-500">
-                      <Music className="w-5 h-5" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold truncate text-white">
-                    {song.title}
-                  </div>
-                  <div className="text-xs text-slate-400 truncate flex items-center gap-2">
-                    <span className="font-semibold text-emerald-400">{song.artist}</span>
-                    {song.album && <span className="text-slate-500">• {song.album}</span>}
-                  </div>
-                </div>
-
-                <span
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                    isSelected
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {isSelected ? 'Deviner ↵' : 'Deviner'}
-                </span>
+          {results.length > 0 ? (
+            <>
+              <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
+                <span>Suggestions ({results.length})</span>
+                <span className="text-emerald-400 text-xs lowercase font-semibold">Cliquez ou Entrée pour valider</span>
               </div>
-            );
-          })}
+
+              {results.map((song, index) => {
+                const isSelected = index === selectedIndex;
+                return (
+                  <div
+                    key={song.id || index}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelectSong(song);
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSelectSong(song);
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={`w-full flex items-center gap-3.5 p-3 text-left transition-colors cursor-pointer select-none ${
+                      isSelected
+                        ? 'bg-emerald-500/20 text-white'
+                        : 'hover:bg-slate-800/70 text-slate-200'
+                    }`}
+                  >
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-slate-800 shrink-0 border border-slate-700/50">
+                      {song.artwork ? (
+                        <img
+                          src={song.artwork}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-500">
+                          <Music className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold truncate text-white">
+                        {song.title}
+                      </div>
+                      <div className="text-xs text-slate-400 truncate flex items-center gap-2">
+                        <span className="font-semibold text-emerald-400">{song.artist}</span>
+                        {song.album && <span className="text-slate-500">• {song.album}</span>}
+                      </div>
+                    </div>
+
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                        isSelected
+                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {isSelected ? 'Deviner ↵' : 'Deviner'}
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          ) : !loading ? (
+            <div className="p-4 text-center text-xs text-slate-400">
+              <span>Aucun titre trouvé dans le catalogue pour « <strong className="text-white">{query}</strong> ».</span>
+              <div className="mt-1 text-slate-500 text-[11px]">Appuyez sur <strong className="text-slate-300">Entrée</strong> ou <strong className="text-slate-300">Valider</strong> pour soumettre directement votre texte.</div>
+            </div>
+          ) : null}
         </div>
       )}
 
