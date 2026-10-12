@@ -249,6 +249,7 @@ async function startServer() {
       return res.json([]);
     }
     const limit = Math.min(Number(req.query.limit) || 12, 30);
+    res.setHeader('Cache-Control', 'public, max-age=180, stale-while-revalidate=600');
     const results = await searchFreeMusic(q, limit);
     res.json(results);
   });

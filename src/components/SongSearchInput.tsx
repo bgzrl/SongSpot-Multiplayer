@@ -12,6 +12,9 @@ interface SongSearchInputProps {
   steps?: number[];
 }
 
+// In-memory client cache for instant responses as the user types or backspaces
+const clientSearchCache = new Map<string, Song[]>();
+
 export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   onGuess,
   disabled = false,
@@ -26,43 +29,94 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchSeqRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Debounced search with race-condition prevention
+  // Debounced search with client-side instant cache and race-condition prevention
   useEffect(() => {
     if (selectedSong) return;
 
     const trimmed = query.trim();
+    const clean = trimmed.toLowerCase();
+
     if (!trimmed || trimmed.length < 2) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       setResults([]);
       setLoading(false);
       setIsOpen(false);
       return;
     }
 
+    // 1. Instant Cache Hit (0ms delay)
+    if (clientSearchCache.has(clean)) {
+      const cached = clientSearchCache.get(clean)!;
+      setResults(cached);
+      setIsOpen(cached.length > 0);
+      setSelectedIndex(0);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Instant Prefix Filtering from existing cached parent queries
+    let prefixFound = false;
+    for (let len = clean.length - 1; len >= 2; len--) {
+      const prefix = clean.slice(0, len);
+      const parentResults = clientSearchCache.get(prefix);
+      if (parentResults && parentResults.length > 0) {
+        const filtered = parentResults.filter(s =>
+          `${s.title} ${s.artist}`.toLowerCase().includes(clean)
+        );
+        if (filtered.length > 0) {
+          setResults(filtered);
+          setIsOpen(true);
+          setSelectedIndex(0);
+          prefixFound = true;
+          break;
+        }
+      }
+    }
+
+    // Abort previous in-flight fetch
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const currentSeq = ++searchSeqRef.current;
-    setLoading(true);
+    if (!prefixFound) {
+      setLoading(true);
+    }
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/music/search?q=${encodeURIComponent(trimmed)}&limit=15`);
+        const res = await fetch(`/api/music/search?q=${encodeURIComponent(trimmed)}&limit=15`, {
+          signal: controller.signal,
+        });
         if (res.ok && currentSeq === searchSeqRef.current) {
           const data: Song[] = await res.json();
           if (currentSeq === searchSeqRef.current) {
+            clientSearchCache.set(clean, data);
             setResults(data);
-            setIsOpen(true);
-            setSelectedIndex(0); // Auto-highlight first suggestion for quick Enter key
+            setIsOpen(data.length > 0);
+            setSelectedIndex(0);
           }
         }
-      } catch (err) {
-        console.error('Search error:', err);
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.error('Search error:', err);
+        }
       } finally {
         if (currentSeq === searchSeqRef.current) {
           setLoading(false);
         }
       }
-    }, 100);
+    }, 80);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [query, selectedSong]);
 
   // Click outside listener
