@@ -1,0 +1,6 @@
+{
+  "name": "SongSpot Multiplayer - Blind Test Musical",
+  "description": "Devinez la musique à partir d'extraits ultra-courts (de 0.1s à 15s) en solo ou en multijoueur temps réel avec vos amis !",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
