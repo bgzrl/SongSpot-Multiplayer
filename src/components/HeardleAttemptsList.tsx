@@ -53,7 +53,7 @@ export const HeardleAttemptsList: React.FC<HeardleAttemptsListProps> = ({
                   <span className="text-emerald-300 font-normal"> — {att.title}</span>
                 </div>
               </div>
-              <span className="text-[10px] uppercase font-mono font-bold text-emerald-400 shrink-0 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-500/30">
+              <span className="text-xs font-bold text-emerald-400 shrink-0 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-500/30">
                 Trouvé !
               </span>
             </div>
@@ -82,7 +82,7 @@ export const HeardleAttemptsList: React.FC<HeardleAttemptsListProps> = ({
                   <span className="text-slate-400"> — {att.title}</span>
                 </div>
               </div>
-              <span className="text-[10px] uppercase font-mono font-bold text-rose-400/80 shrink-0">
+              <span className="text-xs font-semibold text-rose-400/80 shrink-0">
                 Faux
               </span>
             </div>
@@ -103,8 +103,8 @@ export const HeardleAttemptsList: React.FC<HeardleAttemptsListProps> = ({
                   Passé (extrait suivant débloqué)
                 </span>
               </div>
-              <span className="text-[10px] uppercase font-mono font-bold text-slate-500 shrink-0">
-                Ignoré
+              <span className="text-xs font-semibold text-slate-500 shrink-0">
+                Passé
               </span>
             </div>
           );
@@ -121,7 +121,7 @@ export const HeardleAttemptsList: React.FC<HeardleAttemptsListProps> = ({
             }`}
           >
             {isCurrent && (
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>Essai n°{stepNum} en cours...</span>
               </div>

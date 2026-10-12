@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, X, Smile, Flame, Sparkles } from 'lucide-react';
+import { MessageSquare, Send, X, Smile, Flame } from 'lucide-react';
 import { ChatMessage, LiveReaction } from '../types/game';
 
 interface ChatAndReactionsProps {

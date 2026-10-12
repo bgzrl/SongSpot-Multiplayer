@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Player } from '../types/game';
-import { Trophy, Crown, Sparkles, RotateCcw, Home, Medal } from 'lucide-react';
+import { Trophy, Crown, RotateCcw, Home, Medal } from 'lucide-react';
 import { soundFX } from '../services/soundEffects';
 
 interface GamePodiumProps {
@@ -53,16 +53,16 @@ export const GamePodium: React.FC<GamePodiumProps> = ({
   }, []);
 
   return (
-    <div className="w-full max-w-4xl mx-auto bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-500">
+    <div className="w-full max-w-4xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-10 shadow-xl animate-in zoom-in-95 duration-500">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-xs uppercase tracking-wider mb-3">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Partie Terminée !
+        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">
+          Partie terminée
         </div>
         <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
           Podium Final 🏆
         </h2>
         <p className="text-slate-400 text-sm mt-1">
-          Félicitations à tous les mélomanes !
+          Félicitations à tous les participants !
         </p>
       </div>
 
@@ -76,7 +76,7 @@ export const GamePodium: React.FC<GamePodiumProps> = ({
               <div className="font-bold text-sm text-white truncate max-w-full text-center mt-1">
                 {second.nickname}
               </div>
-              <div className="font-mono text-xs font-bold text-slate-300">
+              <div className="tabular-nums text-xs font-semibold text-slate-300">
                 {second.score} pts
               </div>
             </div>
@@ -100,7 +100,7 @@ export const GamePodium: React.FC<GamePodiumProps> = ({
               <div className="font-extrabold text-base sm:text-lg text-amber-300 truncate max-w-full text-center mt-1">
                 {first.nickname}
               </div>
-              <div className="font-mono text-sm font-black text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
+              <div className="tabular-nums text-sm font-bold text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
                 {first.score} pts
               </div>
             </div>
@@ -123,7 +123,7 @@ export const GamePodium: React.FC<GamePodiumProps> = ({
               <div className="font-bold text-sm text-white truncate max-w-full text-center mt-1">
                 {third.nickname}
               </div>
-              <div className="font-mono text-xs font-bold text-slate-300">
+              <div className="tabular-nums text-xs font-semibold text-slate-300">
                 {third.score} pts
               </div>
             </div>
@@ -152,13 +152,13 @@ export const GamePodium: React.FC<GamePodiumProps> = ({
                 className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60"
               >
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs text-slate-500 font-bold">
+                  <span className="tabular-nums text-xs text-slate-400 font-bold">
                     #{idx + 4}
                   </span>
                   <span className="text-lg">{player.avatar}</span>
                   <span className="font-semibold text-sm text-white">{player.nickname}</span>
                 </div>
-                <div className="font-mono font-bold text-sm text-slate-300">
+                <div className="tabular-nums font-bold text-sm text-slate-300">
                   {player.score} pts
                 </div>
               </div>

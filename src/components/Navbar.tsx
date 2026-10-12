@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Music, Volume2, VolumeX, HelpCircle, Users, Headphones, X } from 'lucide-react';
-import { soundFX } from '../services/soundEffects';
+import { HelpCircle, Users, Headphones, X } from 'lucide-react';
 
 interface NavbarProps {
   currentTab: 'multiplayer' | 'solo';
@@ -15,87 +14,76 @@ export const Navbar: React.FC<NavbarProps> = ({
   isConnected = true,
   onHomeClick,
 }) => {
-  const [soundEnabled, setSoundEnabled] = useState(soundFX.enabled);
   const [showRules, setShowRules] = useState(false);
-
-  const toggleSound = () => {
-    soundFX.enabled = !soundEnabled;
-    setSoundEnabled(!soundEnabled);
-  };
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Logo - Clic pour retourner à l'accueil */}
+          {/* Logo Songspot moderne, pro et naturel */}
           <button
             onClick={onHomeClick}
             type="button"
-            className="flex items-center gap-3 text-left group transition-transform active:scale-95 cursor-pointer focus:outline-none"
-            title="Retour à l'accueil SongSpot"
+            className="flex items-center gap-3 text-left group transition-all cursor-pointer focus:outline-none"
+            title="Retour à l'accueil"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-black group-hover:scale-105 transition-transform">
-              <Music className="w-5 h-5 fill-current" />
+            <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <svg
+                className="w-5 h-5 text-slate-950"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                {/* 4 barres d'onde sonore stylisées et dynamiques */}
+                <rect x="3" y="8" width="3" height="8" rx="1.5" />
+                <rect x="8.5" y="3.5" width="3" height="17" rx="1.5" />
+                <rect x="14" y="6.5" width="3" height="11" rx="1.5" />
+                <rect x="19.5" y="9.5" width="3" height="5" rx="1.5" />
+              </svg>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-xl tracking-tight text-white group-hover:text-emerald-300 transition-colors">
-                  Song<span className="text-emerald-400">Spot</span>
-                </span>
-                <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border border-indigo-500/30">
-                  {currentTab === 'solo' ? 'Solo' : 'Multiplayer'}
-                </span>
-              </div>
+            <div className="flex items-baseline">
+              <span className="font-extrabold text-xl tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                Songspot
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1 mb-0.5"></span>
             </div>
           </button>
 
-          {/* Center Tabs: Multiplayer vs Solo */}
-          <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-2xl shadow-inner">
+          {/* Onglets : Multijoueur & Solo (design segmenté sobre et soigné) */}
+          <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-xl shadow-inner">
             <button
               onClick={() => onTabChange('multiplayer')}
               type="button"
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 currentTab === 'multiplayer'
-                  ? 'bg-indigo-600 text-white shadow-md'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Users className="w-4 h-4" />
               <span>Multijoueur</span>
-              {isConnected && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping hidden sm:inline-block" />
-              )}
             </button>
 
             <button
               onClick={() => onTabChange('solo')}
               type="button"
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 currentTab === 'solo'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Headphones className="w-4 h-4" />
-              <span>Mode Solo</span>
+              <span>Solo</span>
             </button>
           </div>
 
-          {/* Right Action Icons */}
+          {/* Bouton d'aide à droite */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSound}
-              type="button"
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors cursor-pointer"
-              title={soundEnabled ? 'Désactiver les effets sonores' : 'Activer les effets sonores'}
-            >
-              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
-            </button>
-
             <button
               onClick={() => setShowRules(true)}
               type="button"
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 flex items-center justify-center transition-colors cursor-pointer"
               title="Règles du jeu"
             >
               <HelpCircle className="w-4 h-4" />
@@ -107,59 +95,69 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Rules Modal */}
       {showRules && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => setShowRules(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800"
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl sm:text-2xl font-black text-white mb-2 flex items-center gap-2">
-              <Music className="w-6 h-6 text-emerald-400" /> Règles de SongSpot
-            </h3>
-            <p className="text-slate-400 text-xs sm:text-sm mb-6">
-              Le blind test musical ultime où chaque milliseconde compte !
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950">
+                <svg className="w-4 h-4 text-slate-950" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="3" y="8" width="3" height="8" rx="1.5" />
+                  <rect x="8.5" y="3.5" width="3" height="17" rx="1.5" />
+                  <rect x="14" y="6.5" width="3" height="11" rx="1.5" />
+                  <rect x="19.5" y="9.5" width="3" height="5" rx="1.5" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-white">
+                Règles de Songspot
+              </h3>
+            </div>
+            <p className="text-slate-400 text-xs sm:text-sm mb-5">
+              Le blind test musical ultra-rapide où chaque milliseconde compte.
             </p>
 
-            <div className="space-y-4 text-xs sm:text-sm text-slate-300">
-              <div className="flex items-start gap-3 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                <span className="text-xl">⏱️</span>
+            <div className="space-y-3 text-xs sm:text-sm text-slate-300">
+              <div className="flex items-start gap-3 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80">
+                <span className="text-lg">⏱️</span>
                 <div>
                   <strong className="text-white block font-semibold mb-0.5">
                     Extraits ultra-courts
                   </strong>
-                  Chaque manche démarre avec un extrait de seulement <strong>0.2 seconde</strong> ! Si vous séchez ou passez, l’extrait grandit : 0.5s, 1.5s, 4s, 9s et 15s.
+                  Chaque manche démarre avec <strong>0.2 seconde</strong>. Si vous passez ou ratez, l’extrait s'allonge progressivement : 0.5s, 1.5s, 4s, 9s puis 15s.
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                <span className="text-xl">🏆</span>
+              <div className="flex items-start gap-3 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80">
+                <span className="text-lg">🏆</span>
                 <div>
                   <strong className="text-white block font-semibold mb-0.5">
-                    Points & Bonus de vitesse
+                    Points & Rapidité
                   </strong>
-                  Trouver dès le premier extrait rapporte <strong>1000 points</strong>. Plus vous trouvez vite, plus vous engrangez de points bonus !
+                  Trouver dès les premières fractions de seconde rapporte le maximum de points.
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                <span className="text-xl">👥</span>
+              <div className="flex items-start gap-3 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80">
+                <span className="text-lg">👥</span>
                 <div>
                   <strong className="text-white block font-semibold mb-0.5">
                     Multijoueur en temps réel
                   </strong>
-                  Créez une salle, partagez le code ou le lien avec vos amis. Tout le monde écoute le même extrait en direct et se bat pour le podium !
+                  Créez une salle, partagez le code avec vos amis et devinez ensemble sur le même extrait sonore.
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                <span className="text-xl">✨</span>
+              <div className="flex items-start gap-3 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80">
+                <span className="text-lg">🎧</span>
                 <div>
                   <strong className="text-white block font-semibold mb-0.5">
-                    Recherche gratuite & Illimitée
+                    Mode Solo & Artiste Unique
                   </strong>
-                  Accédez à des millions de titres légaux via les APIs publiques et gratuites (iTunes, Deezer), sans aucune pub !
+                  Jouez en continu sur les hits du moment ou testez-vous à 100% sur un artiste particulier sans aucun intrus.
                 </div>
               </div>
             </div>
@@ -167,9 +165,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => setShowRules(false)}
               type="button"
-              className="mt-6 w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all cursor-pointer"
+              className="mt-6 w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all cursor-pointer shadow-md"
             >
-              C'est compris, que la musique commence ! 🎵
+              C'est compris, jouer !
             </button>
           </div>
         </div>

@@ -66,7 +66,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ stats, isOpen, onClose }
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
             Répartition des victoires
           </h4>
-          <div className="space-y-1.5 font-mono text-xs">
+          <div className="space-y-1.5 tabular-nums text-xs">
             {[1, 2, 3, 4, 5, 6].map(num => {
               const count = stats.guessDistribution?.[num] || 0;
               const widthPct = Math.max(7, Math.round((count / maxGuesses) * 100));

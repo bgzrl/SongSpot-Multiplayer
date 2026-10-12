@@ -19,7 +19,6 @@ import {
   XCircle,
   HelpCircle,
   Volume2,
-  Sparkles,
 } from 'lucide-react';
 
 interface GameRoundProps {
@@ -220,7 +219,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
         </div>
 
         {/* Right: Round Countdown Timer */}
-        <div className="flex items-center gap-2 font-mono">
+        <div className="flex items-center gap-2 tabular-nums">
           <div
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-bold text-sm sm:text-base ${
               isTimeCritical
@@ -325,7 +324,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
                     <CheckCircle2 className="w-3.5 h-3.5" /> +{player.pointsEarnedThisRound}
                   </span>
                 ) : (
-                  <span className="text-slate-500 font-mono text-[10px]">
+                  <span className="text-slate-400 text-xs font-medium">
                     Étape {player.currentStep || 1}
                   </span>
                 )}

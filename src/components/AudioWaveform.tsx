@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Play, Square, Volume2, Volume1, VolumeX, Sparkles, Lock, FastForward, Flag } from 'lucide-react';
+import { Play, Square, Volume2, Volume1, VolumeX, Lock, FastForward, Flag } from 'lucide-react';
 
 interface AudioWaveformProps {
   steps: number[];
@@ -52,18 +52,21 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   };
 
   return (
-    <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-md select-none">
+    <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg select-none">
       {/* Top Bar: Extrait Info & Potard de son */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs text-slate-400 mb-4 pb-3 border-b border-slate-800/80">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded-xl font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>
-              {isRevealed
-                ? 'Morceau complet débloqué (30s)'
-                : `Extrait débloqué : ${prevDuration}s ➔ ${currentMaxDuration}s (Essai ${currentStep}/${steps.length})`}
+          {isRevealed ? (
+            <span className="text-emerald-400 font-semibold text-xs">
+              Morceau complet débloqué (30s)
             </span>
-          </div>
+          ) : (
+            <span className="text-slate-300 text-xs">
+              Extrait : <strong className="text-white font-semibold">{prevDuration}s à {currentMaxDuration}s</strong>
+              <span className="text-slate-600 mx-2">·</span>
+              <span className="text-slate-400">Étape {currentStep}/{steps.length}</span>
+            </span>
+          )}
         </div>
 
         {/* Potard de Son Réglable (Volume slider) */}
@@ -93,7 +96,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             title={`Volume : ${volumePercent}%`}
           />
 
-          <span className="font-mono text-[11px] font-bold text-slate-300 w-8 text-right">
+          <span className="tabular-nums text-xs font-semibold text-slate-300 w-8 text-right">
             {volumePercent}%
           </span>
         </div>
@@ -102,12 +105,12 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       {/* The Segmented Heardle Progress Bar */}
       <div className="relative mb-3">
         {/* Step duration markers above segments */}
-        <div className="flex justify-between text-[11px] font-mono text-slate-500 mb-1 px-0.5">
+        <div className="flex justify-between text-xs tabular-nums text-slate-500 mb-1 px-0.5">
           <span>0s</span>
           {steps.map((sec, idx) => (
             <span
               key={idx}
-              className={idx + 1 <= currentStep || isRevealed ? 'text-emerald-400 font-bold' : 'text-slate-600'}
+              className={idx + 1 <= currentStep || isRevealed ? 'text-emerald-400 font-semibold' : 'text-slate-600'}
             >
               {sec}s
             </span>
@@ -160,7 +163,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
       {/* Center Controls: Play Button & Timers */}
       <div className="flex items-center justify-between pt-2">
-        <span className="font-mono text-xs font-bold text-slate-400 w-16">
+        <span className="tabular-nums text-xs font-semibold text-slate-400 w-16">
           {formatTime(currentTime)}
         </span>
 
@@ -168,7 +171,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         <button
           onClick={onTogglePlay}
           type="button"
-          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-200 transform active:scale-95 cursor-pointer ${
+          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 transform active:scale-95 cursor-pointer ${
             isPlaying
               ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/30 ring-4 ring-rose-500/20'
               : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/40 hover:scale-105 ring-4 ring-emerald-500/20'
@@ -188,7 +191,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           )}
         </button>
 
-        <span className="font-mono text-xs font-bold text-slate-400 w-16 text-right">
+        <span className="tabular-nums text-xs font-semibold text-slate-400 w-16 text-right">
           {formatTime(currentMaxDuration)}
         </span>
       </div>
@@ -196,9 +199,9 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       {/* Footer bar with 'Espace pour écouter' on the left, and PASSER button placed on the right */}
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-400 px-1 border-t border-slate-800/60 pt-3">
         <span className="flex items-center gap-1.5 text-slate-300">
-          <kbd className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-lg border border-slate-700 font-mono text-xs shadow-sm">
+          <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md border border-slate-700/80 text-xs font-medium shadow-sm">
             Espace
-          </kbd>
+          </span>
           <span>pour écouter</span>
         </span>
 
@@ -210,23 +213,23 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
               onSkip();
             }}
             type="button"
-            className={`flex items-center gap-1.5 px-4 py-1.5 font-black text-xs rounded-xl border transition-all cursor-pointer active:scale-95 shadow-md ${
+            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold text-xs rounded-xl border transition-all cursor-pointer active:scale-95 shadow-sm ${
               currentStep >= steps.length
-                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/50 hover:border-rose-400 ring-2 ring-rose-500/20'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700 hover:border-slate-500 shadow-slate-900/40 hover:text-white'
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:text-white'
             }`}
             title="Passer à l'extrait suivant"
           >
             {currentStep >= steps.length ? (
               <>
                 <Flag className="w-3.5 h-3.5 text-rose-400" />
-                <span>FINIR LA MANCHE 🏳️</span>
+                <span>Terminer la manche</span>
               </>
             ) : (
               <>
                 <FastForward className="w-3.5 h-3.5 text-emerald-400" />
                 <span>
-                  PASSER {nextDurationDiff ? `(+${nextDurationDiff}s)` : ''}
+                  Passer {nextDurationDiff ? `(+${nextDurationDiff}s)` : ''}
                 </span>
               </>
             )}

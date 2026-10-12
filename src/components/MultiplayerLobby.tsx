@@ -7,7 +7,6 @@ import {
   Play,
   Users,
   Settings,
-  Sparkles,
   Music,
   Share2,
   Sliders,
@@ -64,13 +63,13 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
       {/* Room Code & Share Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-lg flex flex-col md:flex-row items-center justify-between gap-6">
         <div>
-          <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider mb-1">
-            <Users className="w-4 h-4" /> Salon Multijoueur
+          <div className="text-indigo-400 font-bold text-xs uppercase tracking-wider mb-1">
+            Salon Multijoueur
           </div>
           <div className="flex items-baseline gap-3">
-            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-wider font-mono">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-widest">
               {roomState.roomId}
             </h2>
             <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-semibold">
@@ -78,7 +77,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
             </span>
           </div>
           <p className="text-slate-400 text-xs sm:text-sm mt-1">
-            Invitez vos amis en leur donnant ce code ou le lien direct !
+            Partagez ce code avec vos amis pour qu'ils rejoignent la partie.
           </p>
         </div>
 
@@ -96,7 +95,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
           <button
             onClick={copyInviteLink}
             type="button"
-            className="flex-1 md:flex-initial px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+            className="flex-1 md:flex-initial px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
           >
             {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
             {copiedLink ? 'Lien copié !' : 'Partager Lien'}
@@ -106,7 +105,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Players List (2 columns on lg) */}
-        <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur-md">
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
             <h3 className="font-bold text-white text-base flex items-center gap-2">
               <Users className="w-5 h-5 text-indigo-400" /> Joueurs connectés ({roomState.players.length})
@@ -188,7 +187,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
               <button
                 onClick={onStartGame}
                 type="button"
-                className="w-full sm:flex-1 px-8 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-base rounded-xl shadow-xl shadow-emerald-500/30 transition-all flex items-center justify-center gap-2.5 cursor-pointer active:scale-95"
+                className="w-full sm:flex-1 px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-base rounded-xl shadow-md transition-all flex items-center justify-center gap-2.5 cursor-pointer active:scale-95"
               >
                 <Play className="w-5 h-5 fill-current" /> Lancer la partie !
               </button>
@@ -197,7 +196,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
         </div>
 
         {/* Room Settings Panel (Host controls or Read-only for guests) */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur-md flex flex-col justify-between">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-800 font-bold text-white text-base">
               <Sliders className="w-5 h-5 text-indigo-400" />
@@ -221,7 +220,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                     type="button"
                     disabled={!isHost}
                     onClick={() => onUpdateSettings({ totalRounds: n })}
-                    className={`py-2 rounded-xl font-mono text-xs font-bold border transition-all ${
+                    className={`py-2 rounded-xl text-xs font-semibold tabular-nums border transition-all ${
                       roomState.settings.totalRounds === n
                         ? 'bg-indigo-600 text-white border-indigo-500'
                         : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
@@ -245,7 +244,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                     type="button"
                     disabled={!isHost}
                     onClick={() => onUpdateSettings({ roundDurationSec: sec })}
-                    className={`py-2 rounded-xl font-mono text-xs font-bold border transition-all ${
+                    className={`py-2 rounded-xl text-xs font-semibold tabular-nums border transition-all ${
                       roomState.settings.roundDurationSec === sec
                         ? 'bg-indigo-600 text-white border-indigo-500'
                         : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
@@ -354,10 +353,10 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
             )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-500">
+          <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-slate-400">
             {isHost
-              ? '✨ En tant qu’hôte, vous choisissez les règles de la partie.'
-              : '👀 L’hôte configure la partie et peut la lancer à tout moment.'}
+              ? 'En tant qu’hôte, vous configurez et lancez la partie quand vous le souhaitez.'
+              : 'L’hôte configure la partie et peut la lancer dès que tout le monde est prêt.'}
           </div>
         </div>
       </div>

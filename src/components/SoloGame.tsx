@@ -8,7 +8,6 @@ import { soundFX } from '../services/soundEffects';
 import confetti from 'canvas-confetti';
 import {
   Flame,
-  Sparkles,
   CheckCircle2,
   XCircle,
   Crown,
@@ -396,41 +395,41 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   return (
     <div className="w-full max-w-2xl mx-auto space-y-5 animate-in fade-in duration-300">
       {/* Mode Header: Mix Tendances vs 100% Artiste Unique */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-xl backdrop-blur-md space-y-3">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Main Mode Toggle Buttons */}
-          <div className="flex items-center p-1 bg-slate-950 rounded-2xl border border-slate-800">
+          <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800">
             <button
               onClick={() => setSelectedPlaylist('trending-gen-z')}
               type="button"
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 selectedPlaylist !== 'single-artist'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md ring-2 ring-emerald-400/40'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span>🌟 Mix Top Tendances</span>
+              <span>Top Tendances</span>
             </button>
 
             <button
               onClick={() => setSelectedPlaylist('single-artist')}
               type="button"
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 selectedPlaylist === 'single-artist'
-                  ? 'bg-amber-400 text-slate-950 shadow-md ring-2 ring-amber-400/40'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
                   : 'text-slate-400 hover:text-amber-300'
               }`}
             >
               <Crown className="w-4 h-4 fill-current" />
-              <span>👑 100% Un Seul Artiste</span>
+              <span>100% Artiste</span>
             </button>
           </div>
 
           {/* Stats & Streak counter */}
-          <div className="flex items-center justify-end gap-2 font-mono text-xs text-slate-300">
-            <div className="flex items-center gap-1.5 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-end gap-2 text-xs text-slate-300">
+            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
               <Flame className="w-4 h-4 text-orange-400" />
-              <span>Série: <strong className="text-orange-400">{stats.currentStreak}</strong></span>
+              <span>Série : <strong className="text-orange-400 tabular-nums">{stats.currentStreak}</strong></span>
             </div>
 
             <button
@@ -440,7 +439,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
               title="Voir les statistiques"
             >
               <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline">Stats</span>
+              <span className="hidden sm:inline font-medium">Stats</span>
             </button>
           </div>
         </div>
@@ -455,10 +454,10 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                   key={pl.id}
                   onClick={() => setSelectedPlaylist(pl.id)}
                   type="button"
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     selectedPlaylist === pl.id
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                      : 'bg-slate-950/60 text-slate-400 hover:text-slate-200 border border-slate-800/80'
+                      : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
                   }`}
                 >
                   {pl.icon} {pl.name}
@@ -470,20 +469,20 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
       {/* Prominent 100% Single Artist Selector Box */}
       {selectedPlaylist === 'single-artist' && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl backdrop-blur-md animate-in fade-in duration-200 space-y-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/20">
+        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-md">
                 <Crown className="w-5 h-5 fill-current" />
               </div>
               <div>
-                <div className="font-extrabold text-sm text-white flex items-center gap-2">
+                <div className="font-bold text-sm text-white flex items-center gap-2">
                   <span>Mode 100% Artiste Unique</span>
-                  <span className="text-xs bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-lg border border-amber-400/40 font-black">
+                  <span className="text-xs bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-400/30 font-bold">
                     {singleArtistTarget}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className="text-xs text-slate-400">
                   Devinez exclusivement les sons de cet artiste (zéro intrus)
                 </div>
               </div>
@@ -497,12 +496,12 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                   value={artistInputText}
                   onChange={(e) => setArtistInputText(e.target.value)}
                   placeholder="Tapez un artiste (ex: Theodort)..."
-                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 w-full sm:w-56"
+                  className="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 w-full sm:w-56"
                 />
               </div>
               <button
                 type="submit"
-                className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition-all cursor-pointer shadow-md shrink-0"
+                className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm shrink-0"
               >
                 Changer
               </button>
@@ -511,18 +510,18 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
           {/* Quick preset artist buttons */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-amber-300 mr-1 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-400" /> Artistes populaires :
+            <span className="text-xs font-semibold text-slate-400 mr-1">
+              Artistes populaires :
             </span>
             {POPULAR_ARTISTS.map(art => (
               <button
                 key={art}
                 onClick={() => handleSelectArtist(art)}
                 type="button"
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   singleArtistTarget.toLowerCase() === art.toLowerCase()
-                    ? 'bg-amber-400 text-slate-950 font-black shadow-md scale-105'
-                    : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
+                    ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                    : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
                 }`}
               >
                 {art}
@@ -646,7 +645,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
               {/* Emoji Share Block */}
               <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1 font-mono text-sm tracking-wider">
+                  <div className="flex items-center gap-1 text-sm tracking-wider">
                     {attempts.map((a, i) => (
                       <span key={i}>
                         {a.type === 'correct' ? '🟩' : a.type === 'wrong' ? '🟥' : '⬛'}
@@ -658,7 +657,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                       )
                     )}
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="text-xs text-slate-400 tabular-nums font-semibold">
                     {gameStatus === 'won' ? `${currentStep}/6` : 'X/6'}
                   </span>
                 </div>

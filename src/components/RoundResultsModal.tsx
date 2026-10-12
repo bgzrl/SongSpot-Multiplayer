@@ -65,7 +65,7 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
             Révélation Manche {currentRound} / {totalRounds}
           </span>
         </div>
-        <div className="text-xs font-mono text-slate-400">
+        <div className="text-xs text-slate-400 font-medium">
           {currentRound >= totalRounds ? 'Fin de la partie imminente...' : 'Manche suivante bientôt...'}
         </div>
       </div>
@@ -177,7 +177,7 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
                 </div>
 
                 <div className="text-right">
-                  <div className={`font-mono font-bold text-sm ${score.points > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  <div className={`tabular-nums font-bold text-sm ${score.points > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
                     +{score.points} pts
                   </div>
                 </div>
@@ -191,9 +191,8 @@ export const RoundResultsModal: React.FC<RoundResultsModalProps> = ({
       {onNextRound && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-800">
           <div className="text-xs text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>
-              Passage auto dans <strong className="text-emerald-400 font-mono text-sm">{secondsLeft}s</strong>... ou passez direct :
+              Passage auto dans <strong className="text-emerald-400 tabular-nums text-sm font-semibold">{secondsLeft}s</strong>... ou passez direct :
             </span>
           </div>
 

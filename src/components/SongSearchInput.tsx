@@ -234,9 +234,9 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
               ref={dropdownRef}
               className="absolute z-50 left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
             >
-              <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
+              <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
                 <span>Suggestions ({results.length})</span>
-                <span className="text-slate-500 font-mono">Entrée ↵ pour valider</span>
+                <span className="text-slate-400 text-xs lowercase">Entrée pour valider</span>
               </div>
 
               {results.map((song, index) => {
@@ -281,7 +281,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
                     </div>
 
                     <span
-                      className={`text-[11px] font-mono font-bold px-2 py-1 rounded-md transition-colors ${
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
                         isSelected
                           ? 'bg-emerald-500 text-slate-950 shadow-sm'
                           : 'bg-slate-800 text-slate-400'
@@ -301,14 +301,14 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
           onClick={handleSubmit}
           disabled={!canSubmit}
           type="button"
-          className={`px-6 py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shrink-0 cursor-pointer ${
+          className={`px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shrink-0 cursor-pointer ${
             canSubmit
-              ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-400 shadow-emerald-500/30 hover:shadow-emerald-500/50'
+              ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
               : 'bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
           }`}
         >
           <Send className="w-4 h-4 fill-current" />
-          <span>SOUMETTRE</span>
+          <span>Valider</span>
         </button>
       </form>
 

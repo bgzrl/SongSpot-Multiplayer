@@ -20,7 +20,6 @@ import {
   PlusCircle,
   LogIn,
   Music,
-  Sparkles,
   Flame,
   Radio,
   Share2,
@@ -462,71 +461,65 @@ export default function App() {
           </div>
         ) : (
           /* Multiplayer Home (Profile setup, Create or Join Room) */
-          <div className="max-w-4xl mx-auto space-y-10">
-            {/* Hero Banner */}
-            <div className="text-center space-y-4 pt-4">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-extrabold text-xs uppercase tracking-wider shadow-inner">
-                <Sparkles className="w-3.5 h-3.5" /> Blind Test Musical 0.1s à 15s
-              </div>
-              <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
-                Devinez la musique <br />
-                <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-400 bg-clip-text text-transparent">
-                  en quelques millisecondes.
-                </span>
+          <div className="max-w-4xl mx-auto space-y-8">
+            {/* Direct, Clean Title */}
+            <div className="text-center space-y-2 pt-2">
+              <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+                Blind test musical multijoueur
               </h1>
-              <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto">
-                Inspiré de Songspot, désormais jouable <strong>en multijoueur en direct</strong> avec vos proches ! Écoutez un micro-extrait de 0.2s et trouvez le titre avant les autres.
+              <p className="text-slate-400 text-sm sm:text-base max-w-lg mx-auto">
+                Écoutez une fraction de seconde et devinez le morceau en direct avec vos amis.
               </p>
             </div>
 
             {/* User Profile Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-                👤 Votre profil de joueur
-              </h3>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                Votre profil joueur
+              </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="flex flex-col sm:flex-row items-center gap-5">
                 {/* Avatar Display */}
                 <div
-                  className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl shadow-xl shrink-0 border-2"
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 border"
                   style={{
-                    backgroundColor: `${color}25`,
-                    borderColor: color,
+                    backgroundColor: `${color}20`,
+                    borderColor: `${color}60`,
                   }}
                 >
                   {avatar}
                 </div>
 
-                <div className="flex-1 w-full space-y-4">
+                <div className="flex-1 w-full space-y-3">
                   {/* Nickname input */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      Pseudo en jeu
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      Pseudo
                     </label>
                     <input
                       type="text"
                       value={nickname}
                       onChange={e => setNickname(e.target.value)}
                       maxLength={16}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-semibold text-sm focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-white font-semibold text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                     />
                   </div>
 
                   {/* Avatar Picker */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                      Choisir un avatar
+                    <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                      Avatar
                     </label>
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                       {AVATAR_LIST.map(em => (
                         <button
                           key={em}
                           type="button"
                           onClick={() => setAvatar(em)}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all cursor-pointer ${
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all cursor-pointer ${
                             avatar === em
-                              ? 'bg-indigo-600 text-white scale-110 shadow-lg'
-                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              ? 'bg-emerald-500 text-slate-950 scale-105 shadow-md font-bold'
+                              : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
                           }`}
                         >
                           {em}
@@ -539,23 +532,23 @@ export default function App() {
             </div>
 
             {/* Create Room vs Join Room Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Create Room */}
-              <div className="bg-gradient-to-br from-slate-900 via-indigo-950/20 to-slate-900 border border-indigo-500/30 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col justify-between">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col justify-between hover:border-slate-700/80 transition-colors">
                 <div>
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 mb-4">
-                    <PlusCircle className="w-6 h-6" />
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4">
+                    <PlusCircle className="w-5 h-5" />
                   </div>
-                  <h3 className="text-2xl font-black text-white mb-1">
-                    Créer une Salle
+                  <h3 className="text-xl font-extrabold text-white mb-1">
+                    Créer une partie
                   </h3>
-                  <p className="text-slate-400 text-xs sm:text-sm mb-6">
-                    Devenez le chef d'orchestre, choisissez le thème musical et défiez vos amis !
+                  <p className="text-slate-400 text-xs sm:text-sm mb-5">
+                    Choisissez la playlist, invitez vos amis avec le code et lancez le jeu.
                   </p>
 
                   <div className="mb-6">
                     <label className="block text-xs font-semibold text-slate-400 mb-2">
-                      Thème initial
+                      Playlist de départ
                     </label>
                     <div className="space-y-1.5">
                       {playlists.slice(0, 4).map(pl => (
@@ -565,8 +558,8 @@ export default function App() {
                           onClick={() => setSelectedLobbyPlaylist(pl.id)}
                           className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                             selectedLobbyPlaylist === pl.id
-                              ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold'
-                              : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-800'
+                              ? 'bg-indigo-600/20 border-indigo-500/60 text-white font-bold'
+                              : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
                           }`}
                         >
                           <span>{pl.icon} {pl.name}</span>
@@ -580,29 +573,29 @@ export default function App() {
                 <button
                   onClick={handleCreateRoom}
                   type="button"
-                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <Radio className="w-4 h-4" /> Créer et obtenir un code
+                  <Radio className="w-4 h-4" /> Créer un salon
                 </button>
               </div>
 
               {/* Join Room */}
-              <div className="bg-gradient-to-br from-slate-900 via-emerald-950/20 to-slate-900 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col justify-between">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col justify-between hover:border-slate-700/80 transition-colors">
                 <div>
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-4">
-                    <LogIn className="w-6 h-6" />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4">
+                    <LogIn className="w-5 h-5" />
                   </div>
-                  <h3 className="text-2xl font-black text-white mb-1">
-                    Rejoindre une Salle
+                  <h3 className="text-xl font-extrabold text-white mb-1">
+                    Rejoindre une partie
                   </h3>
-                  <p className="text-slate-400 text-xs sm:text-sm mb-6">
-                    Un ami vous a donné un code de salon ? Entrez-le pour participer en direct !
+                  <p className="text-slate-400 text-xs sm:text-sm mb-5">
+                    Entrez le code à 6 lettres partagé par l’hôte pour entrer dans le salon.
                   </p>
 
                   <form onSubmit={handleJoinRoom} className="space-y-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                        Code du salon (6 lettres)
+                        Code du salon
                       </label>
                       <input
                         type="text"
@@ -610,7 +603,7 @@ export default function App() {
                         onChange={e => setJoinCodeInput(e.target.value.toUpperCase())}
                         maxLength={6}
                         placeholder="Ex: BEAT42"
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-white font-mono font-bold text-center text-lg tracking-widest uppercase focus:outline-none"
+                        className="w-full bg-slate-950 border border-slate-700/80 focus:border-emerald-500 rounded-xl px-4 py-3 text-white font-extrabold text-center text-lg tracking-widest uppercase focus:outline-none transition-colors"
                       />
                     </div>
                   </form>
@@ -620,9 +613,9 @@ export default function App() {
                   onClick={() => handleJoinRoom()}
                   type="button"
                   disabled={!joinCodeInput.trim()}
-                  className="w-full mt-6 py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-black text-sm rounded-2xl shadow-xl shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  className="w-full mt-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <LogIn className="w-4 h-4" /> Rejoindre la partie
+                  <LogIn className="w-4 h-4" /> Rejoindre la salle
                 </button>
               </div>
             </div>
