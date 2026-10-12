@@ -188,7 +188,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
   const isTimeCritical = roomState.roundTimeLeft <= 10;
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in duration-200">
+    <div className="w-full max-w-xl mx-auto space-y-4 animate-in fade-in duration-200">
       {/* Top Round Bar */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl backdrop-blur-md flex items-center justify-between gap-4">
         {/* Left: Round & Theme */}

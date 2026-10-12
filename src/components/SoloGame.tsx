@@ -407,7 +407,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-5 animate-in fade-in duration-300">
+    <div className="w-full max-w-xl mx-auto space-y-4 animate-in fade-in duration-300">
       {/* Mode Header: Mix Tendances vs 100% Artiste Unique */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

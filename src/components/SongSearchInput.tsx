@@ -228,73 +228,6 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
               <X className="w-4 h-4" />
             </button>
           )}
-
-          {/* Autocomplete Dropdown */}
-          {isOpen && results.length > 0 && !hasGuessed && (
-            <div
-              ref={dropdownRef}
-              className="absolute z-[100] left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700/80 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
-            >
-              <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
-                <span>Suggestions ({results.length})</span>
-                <span className="text-emerald-400 text-xs lowercase font-semibold">Cliquez ou Entrée pour valider</span>
-              </div>
-
-              {results.map((song, index) => {
-                const isSelected = index === selectedIndex;
-                return (
-                  <div
-                    key={song.id || index}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleSelectSong(song);
-                    }}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={`w-full flex items-center gap-3.5 p-3 text-left transition-colors cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-emerald-500/20 text-white'
-                        : 'hover:bg-slate-800/70 text-slate-200'
-                    }`}
-                  >
-                    <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-slate-800 shrink-0 border border-slate-700/50">
-                      {song.artwork ? (
-                        <img
-                          src={song.artwork}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-500">
-                          <Music className="w-5 h-5" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold truncate text-white">
-                        {song.title}
-                      </div>
-                      <div className="text-xs text-slate-400 truncate flex items-center gap-2">
-                        <span className="font-semibold text-emerald-400">{song.artist}</span>
-                        {song.album && <span className="text-slate-500">• {song.album}</span>}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                        isSelected
-                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {isSelected ? 'Deviner ↵' : 'Deviner'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* Submit Button */}
@@ -312,6 +245,73 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
           <span>Valider</span>
         </button>
       </form>
+
+      {/* Autocomplete Dropdown spans full container width */}
+      {isOpen && results.length > 0 && !hasGuessed && (
+        <div
+          ref={dropdownRef}
+          className="absolute z-[100] left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700/80 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
+        >
+          <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
+            <span>Suggestions ({results.length})</span>
+            <span className="text-emerald-400 text-xs lowercase font-semibold">Cliquez ou Entrée pour valider</span>
+          </div>
+
+          {results.map((song, index) => {
+            const isSelected = index === selectedIndex;
+            return (
+              <div
+                key={song.id || index}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelectSong(song);
+                }}
+                onMouseEnter={() => setSelectedIndex(index)}
+                className={`w-full flex items-center gap-3.5 p-3 text-left transition-colors cursor-pointer select-none ${
+                  isSelected
+                    ? 'bg-emerald-500/20 text-white'
+                    : 'hover:bg-slate-800/70 text-slate-200'
+                }`}
+              >
+                <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-slate-800 shrink-0 border border-slate-700/50">
+                  {song.artwork ? (
+                    <img
+                      src={song.artwork}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                      <Music className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate text-white">
+                    {song.title}
+                  </div>
+                  <div className="text-xs text-slate-400 truncate flex items-center gap-2">
+                    <span className="font-semibold text-emerald-400">{song.artist}</span>
+                    {song.album && <span className="text-slate-500">• {song.album}</span>}
+                  </div>
+                </div>
+
+                <span
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                    isSelected
+                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {isSelected ? 'Deviner ↵' : 'Deviner'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Selected Song Preview Pill if user selected a song */}
       {selectedSong && !hasGuessed && (

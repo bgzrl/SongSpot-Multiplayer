@@ -118,7 +118,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         </div>
 
         {/* Horizontal Segmented Bar Container */}
-        <div className="relative h-4 sm:h-5 w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex">
+        <div className="relative h-6 sm:h-7 w-full bg-[#18201a] rounded-[12px] overflow-hidden border border-white/10 flex shadow-inner">
           {/* Slices for each step */}
           {steps.map((sec, idx) => {
             const stepStart = idx === 0 ? 0 : steps[idx - 1];
@@ -129,41 +129,35 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             return (
               <div
                 key={idx}
-                className={`relative h-full border-r border-slate-900/90 transition-all ${
+                className={`relative h-full border-r border-slate-950/80 transition-all ${
                   isUnlocked
                     ? isCurrent
-                      ? 'bg-emerald-500/30'
-                      : 'bg-emerald-500/15'
-                    : 'bg-slate-950/60'
+                      ? 'bg-emerald-500 shadow-[inset_0_0_12px_rgba(255,255,255,0.2)]'
+                      : 'bg-emerald-600/80'
+                    : 'bg-[#212923]'
                 }`}
                 style={{ width: `${stepWidthPct}%` }}
               >
                 {!isUnlocked && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-40">
-                    <Lock className="w-2.5 h-2.5 text-slate-600" />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                    <Lock className="w-2.5 h-2.5 text-slate-400" />
                   </div>
                 )}
               </div>
             );
           })}
 
-          {/* Unlocked fill underlay */}
-          <div
-            className="absolute top-0 bottom-0 left-0 bg-emerald-500/10 pointer-events-none transition-all duration-300"
-            style={{ width: `${unlockedRatio * 100}%` }}
-          />
-
           {/* Dynamic Playhead scrubber cursor moving along during playback */}
           <div
-            className="absolute top-0 bottom-0 left-0 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)] border-r-2 border-white pointer-events-none transition-all duration-75"
+            className="absolute top-0 bottom-0 left-0 bg-white/40 border-r-2 border-white pointer-events-none transition-all duration-75 shadow-[0_0_10px_white]"
             style={{ width: `${playheadRatio * 100}%` }}
           />
         </div>
       </div>
 
       {/* Center Controls: Play Button & Timers */}
-      <div className="flex items-center justify-between pt-2">
-        <span className="tabular-nums text-xs font-semibold text-slate-400 w-16">
+      <div className="flex items-center justify-between pt-1">
+        <span className="font-mono text-xs font-bold text-slate-400 w-16">
           {formatTime(currentTime)}
         </span>
 
@@ -173,8 +167,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           type="button"
           className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 transform active:scale-95 cursor-pointer ${
             isPlaying
-              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/30 ring-4 ring-rose-500/20'
-              : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/40 hover:scale-105 ring-4 ring-emerald-500/20'
+              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-[0_0_30px_rgba(244,63,94,0.4)] ring-4 ring-rose-500/20'
+              : 'bg-[#10b981] hover:bg-[#059669] text-slate-950 shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-105 ring-4 ring-emerald-500/20'
           }`}
           title={
             isPlaying
@@ -191,7 +185,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           )}
         </button>
 
-        <span className="tabular-nums text-xs font-semibold text-slate-400 w-16 text-right">
+        <span className="font-mono text-xs font-bold text-slate-400 w-16 text-right">
           {formatTime(currentMaxDuration)}
         </span>
       </div>
