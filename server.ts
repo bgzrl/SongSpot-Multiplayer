@@ -249,8 +249,9 @@ async function startServer() {
       return res.json([]);
     }
     const limit = Math.min(Number(req.query.limit) || 12, 30);
+    const artist = req.query.artist as string | undefined;
     res.setHeader('Cache-Control', 'public, max-age=180, stale-while-revalidate=600');
-    const results = await searchFreeMusic(q, limit);
+    const results = await searchFreeMusic(q, limit, artist);
     res.json(results);
   });
 

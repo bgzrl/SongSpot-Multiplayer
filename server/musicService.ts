@@ -298,16 +298,18 @@ const inFlightSearches = new Map<string, Promise<Song[]>>();
  * - Deduplicates concurrent in-flight requests
  * - Intelligent scoring, token matching, and smart deduplication
  */
-export async function searchFreeMusic(query: string, limit = 15): Promise<Song[]> {
+export async function searchFreeMusic(query: string, limit = 15, targetArtist?: string): Promise<Song[]> {
   const cleanQuery = query.trim().toLowerCase();
   if (!cleanQuery) return [];
 
-  const cached = searchCache.get(cleanQuery);
+  const cacheKey = targetArtist ? `${cleanQuery}__art_${targetArtist.trim().toLowerCase()}` : cleanQuery;
+
+  const cached = searchCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.songs.slice(0, limit);
   }
 
-  const existingInFlight = inFlightSearches.get(cleanQuery);
+  const existingInFlight = inFlightSearches.get(cacheKey);
   if (existingInFlight) {
     const songs = await existingInFlight;
     return songs.slice(0, limit);
@@ -510,6 +512,16 @@ export async function searchFreeMusic(query: string, limit = 15): Promise<Song[]
       }
     }
 
+    // 4. Imposed Artist Boost / Penalty
+    if (targetArtist) {
+      const tNorm = normalizeString(targetArtist);
+      if (targetNormArtist.includes(tNorm) || tNorm.includes(targetNormArtist)) {
+        score += 500; // Strong boost for songs from the imposed artist!
+      } else {
+        score -= 250; // Demote songs from other artists
+      }
+    }
+
     // Keep highest scoring version for duplicate tracks
     const existingScore = seenMap.get(dedupeKey);
     if (existingScore !== undefined) {
@@ -526,23 +538,23 @@ export async function searchFreeMusic(query: string, limit = 15): Promise<Song[]
     }
   }
 
-  // 4. Sort strictly by relevance score descending
+  // 5. Sort strictly by relevance score descending
   scoredResults.sort((a, b) => b.score - a.score);
 
   const finalSongs = scoredResults.slice(0, limit).map(r => r.song);
   if (finalSongs.length > 0) {
-    searchCache.set(cleanQuery, { timestamp: Date.now(), songs: finalSongs });
+    searchCache.set(cacheKey, { timestamp: Date.now(), songs: finalSongs });
   }
 
   return finalSongs;
   })();
 
-  inFlightSearches.set(cleanQuery, searchPromise);
+  inFlightSearches.set(cacheKey, searchPromise);
   try {
     const res = await searchPromise;
     return res.slice(0, limit);
   } finally {
-    inFlightSearches.delete(cleanQuery);
+    inFlightSearches.delete(cacheKey);
   }
 }
 

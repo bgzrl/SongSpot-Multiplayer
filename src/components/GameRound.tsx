@@ -50,6 +50,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
   const hasGuessed = me?.hasGuessed || false;
   const currentHint = roomState.currentSongHint;
   const steps = roomState.settings?.snippetSteps || DEFAULT_SNIPPET_STEPS;
+  const imposedArtist = roomState.settings?.playlistId === 'single-artist' ? (roomState.settings?.customArtist || undefined) : undefined;
 
   // Volume state (persisted)
   const [volume, setVolume] = useState<number>(() => {
@@ -263,6 +264,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
           currentStep={myStep}
           totalSteps={steps.length}
           steps={steps}
+          imposedArtist={imposedArtist}
         />
 
         {/* Skip button when player found the song */}

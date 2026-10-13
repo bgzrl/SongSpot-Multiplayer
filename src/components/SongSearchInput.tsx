@@ -10,6 +10,7 @@ interface SongSearchInputProps {
   currentStep?: number;
   totalSteps?: number;
   steps?: number[];
+  imposedArtist?: string;
 }
 
 // In-memory client cache for instant responses as the user types or backspaces
@@ -19,6 +20,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   onGuess,
   disabled = false,
   hasGuessed = false,
+  imposedArtist,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
@@ -31,6 +33,8 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   const searchSeqRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const minChars = imposedArtist ? 1 : 2;
+
   // Debounced search with client-side instant cache and race-condition prevention
   useEffect(() => {
     if (selectedSong) return;
@@ -38,7 +42,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
     const trimmed = query.trim();
     const clean = trimmed.toLowerCase();
 
-    if (!trimmed || trimmed.length < 2) {
+    if (!trimmed || trimmed.length < minChars) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -48,9 +52,12 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       return;
     }
 
+    const effectiveQuery = imposedArtist ? `${imposedArtist} ${trimmed}` : trimmed;
+    const cacheKey = (imposedArtist ? `${imposedArtist.toLowerCase()}::` : '') + clean;
+
     // 1. Instant Cache Hit (0ms delay)
-    if (clientSearchCache.has(clean)) {
-      const cached = clientSearchCache.get(clean)!;
+    if (clientSearchCache.has(cacheKey)) {
+      const cached = clientSearchCache.get(cacheKey)!;
       setResults(cached);
       setIsOpen(cached.length > 0);
       setSelectedIndex(0);
@@ -60,9 +67,9 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
 
     // 2. Instant Prefix Filtering from existing cached parent queries
     let prefixFound = false;
-    for (let len = clean.length - 1; len >= 2; len--) {
-      const prefix = clean.slice(0, len);
-      const parentResults = clientSearchCache.get(prefix);
+    for (let len = clean.length - 1; len >= minChars; len--) {
+      const parentKey = (imposedArtist ? `${imposedArtist.toLowerCase()}::` : '') + clean.slice(0, len);
+      const parentResults = clientSearchCache.get(parentKey);
       if (parentResults && parentResults.length > 0) {
         const filtered = parentResults.filter(s =>
           `${s.title} ${s.artist}`.toLowerCase().includes(clean)
@@ -91,13 +98,17 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/music/search?q=${encodeURIComponent(trimmed)}&limit=15`, {
-          signal: controller.signal,
-        });
+        const artistParam = imposedArtist ? `&artist=${encodeURIComponent(imposedArtist)}` : '';
+        const res = await fetch(
+          `/api/music/search?q=${encodeURIComponent(effectiveQuery)}${artistParam}&limit=15`,
+          {
+            signal: controller.signal,
+          }
+        );
         if (res.ok && currentSeq === searchSeqRef.current) {
           const data: Song[] = await res.json();
           if (currentSeq === searchSeqRef.current) {
-            clientSearchCache.set(clean, data);
+            clientSearchCache.set(cacheKey, data);
             setResults(data);
             setIsOpen(data.length > 0);
             setSelectedIndex(0);
@@ -117,7 +128,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
     return () => {
       clearTimeout(timer);
     };
-  }, [query, selectedSong]);
+  }, [query, selectedSong, imposedArtist]);
 
   // Click outside listener
   useEffect(() => {
@@ -179,17 +190,18 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
     }
 
     // Direct text submission fallback
-    if (query.trim().length >= 2) {
+    if (query.trim().length >= minChars) {
+      const fullGuess = imposedArtist ? `${query.trim()} ${imposedArtist}` : query.trim();
       onGuess(
         {
           id: 'raw_guess',
           title: query.trim(),
-          artist: '',
+          artist: imposedArtist || '',
           album: '',
           previewUrl: '',
           artwork: '',
         },
-        query.trim()
+        fullGuess
       );
       setSelectedSong(null);
       setQuery('');
@@ -226,20 +238,39 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
     }
   };
 
-  const canSubmit = !disabled && !hasGuessed && (selectedSong !== null || query.trim().length >= 2);
+  const canSubmit = !disabled && !hasGuessed && (selectedSong !== null || query.trim().length >= minChars);
 
   return (
     <div className="w-full relative space-y-2">
       {/* Search Input & Submit Button Container */}
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 relative">
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+        <div className={`relative flex items-center flex-1 bg-slate-900 border rounded-2xl transition-all duration-200 shadow-inner ${
+          hasGuessed
+            ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-300 cursor-not-allowed'
+            : selectedSong
+            ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-slate-900 font-bold'
+            : 'border-slate-700/80 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20'
+        }`}>
+          {/* Left search icon or loading spinner */}
+          <div className="pl-3.5 pr-2 flex items-center pointer-events-none text-slate-400 shrink-0">
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
             ) : (
               <Search className="w-5 h-5" />
             )}
           </div>
+
+          {/* Locked Gray Artist Badge when imposed */}
+          {imposedArtist && !hasGuessed && (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 text-slate-300 border border-slate-700 rounded-xl font-bold text-xs sm:text-sm select-none shrink-0 shadow-sm mr-1 cursor-default"
+              title={`Artiste imposé : ${imposedArtist}`}
+            >
+              <span className="text-slate-400 text-xs">👤</span>
+              <span className="text-slate-200">{imposedArtist}</span>
+              <span className="text-slate-500 font-bold">/</span>
+            </div>
+          )}
 
           <input
             ref={inputRef}
@@ -257,15 +288,11 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
             placeholder={
               hasGuessed
                 ? '✅ Chanson trouvée !'
+                : imposedArtist
+                ? `Titre du morceau de ${imposedArtist}...`
                 : 'Tapez le titre ou l’artiste (ex: Theodort, Jul, Gazo...)'
             }
-            className={`w-full pl-11 pr-10 py-3.5 bg-slate-900 border rounded-2xl text-slate-100 placeholder-slate-500 font-medium text-sm sm:text-base focus:outline-none transition-all duration-200 shadow-inner ${
-              hasGuessed
-                ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-300 cursor-not-allowed'
-                : selectedSong
-                ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-slate-900 font-bold'
-                : 'border-slate-700/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
-            }`}
+            className="w-full py-3.5 pr-10 bg-transparent text-slate-100 placeholder-slate-500 font-medium text-sm sm:text-base focus:outline-none"
           />
 
           {(query || selectedSong) && !hasGuessed && (
@@ -297,7 +324,7 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       </form>
 
       {/* Autocomplete Dropdown spans full container width */}
-      {isOpen && !hasGuessed && query.trim().length >= 2 && (
+      {isOpen && !hasGuessed && query.trim().length >= minChars && (
         <div
           ref={dropdownRef}
           className="absolute z-[100] left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700/80 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"

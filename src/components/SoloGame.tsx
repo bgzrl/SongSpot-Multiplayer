@@ -618,6 +618,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                 currentStep={currentStep}
                 totalSteps={SNIPPET_STEPS.length}
                 steps={SNIPPET_STEPS}
+                imposedArtist={selectedPlaylist === 'single-artist' ? singleArtistTarget : undefined}
               />
             </div>
           ) : (
