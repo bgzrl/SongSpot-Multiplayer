@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Play, Square, Volume2, Volume1, VolumeX, Lock, FastForward, Flag } from 'lucide-react';
+import React from 'react';
+import { Play, Square, Volume2, Volume1, VolumeX, Lock, FastForward, Flag, RotateCcw } from 'lucide-react';
 
 interface AudioWaveformProps {
   steps: number[];
@@ -7,6 +7,9 @@ interface AudioWaveformProps {
   currentTime: number;
   isPlaying: boolean;
   onTogglePlay: () => void;
+  onPlaySegment?: (startSec: number, endSec: number) => void;
+  onSeek?: (sec: number) => void;
+  onReplayAll?: () => void;
   isRevealed?: boolean;
   volume?: number;
   onVolumeChange?: (vol: number) => void;
@@ -19,24 +22,25 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   currentTime,
   isPlaying,
   onTogglePlay,
+  onPlaySegment,
+  onSeek,
+  onReplayAll,
   isRevealed = false,
   volume = 0.8,
   onVolumeChange,
   onSkip,
 }) => {
   const safeVolume = typeof volume === 'number' && !isNaN(volume) ? volume : 0.8;
-  const totalMax = steps[steps.length - 1] || 15.0;
-  const prevDuration = currentStep > 1 && !isRevealed ? steps[currentStep - 2] : 0;
-  const currentMaxDuration = isRevealed ? 30 : steps[Math.min(currentStep - 1, steps.length - 1)] || 0.2;
+  const totalMax = steps[steps.length - 1] || 16.0;
+  const currentStepIndex = Math.min(currentStep - 1, steps.length - 1);
+  const currentStepStart = currentStepIndex === 0 ? 0 : steps[currentStepIndex - 1];
+  const currentStepEnd = steps[currentStepIndex] || 1.0;
 
   // Next unlocked step delta
   const nextDurationDiff =
     currentStep < steps.length
       ? (steps[currentStep] - steps[currentStep - 1]).toFixed(1)
       : null;
-
-  // Unlocked portion ratio across total duration
-  const unlockedRatio = isRevealed ? 1 : Math.min(1, currentMaxDuration / totalMax);
 
   // Playhead scrubber position (0 to 1) across total duration
   const playheadRatio = isRevealed
@@ -51,6 +55,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     return s.toFixed(1) + 's';
   };
 
+  const handleBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const targetSec = isRevealed ? clickRatio * 30 : clickRatio * totalMax;
+    if (targetSec <= currentStepEnd) {
+      onSeek?.(targetSec);
+    }
+  };
+
   return (
     <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg select-none">
       {/* Top Bar: Extrait Info & Potard de son */}
@@ -61,11 +74,22 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
               Morceau complet débloqué (30s)
             </span>
           ) : (
-            <span className="text-slate-300 text-xs">
-              Extrait débloqué : <strong className="text-white font-semibold">0s à {currentMaxDuration}s</strong>
-              <span className="text-slate-600 mx-2">·</span>
-              <span className="text-slate-400">Étape {currentStep}/{steps.length}</span>
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-slate-300 text-xs">
+                Étape {currentStep} : Extrait de{' '}
+                <strong className="text-emerald-400 font-bold">
+                  {currentStepStart}s à {currentStepEnd}s
+                </strong>
+              </span>
+              <span className="text-slate-600 hidden sm:inline">·</span>
+              <span className="text-slate-400 text-xs">
+                {currentStep}/{steps.length}
+              </span>
+              <span className="text-slate-600 hidden sm:inline">·</span>
+              <span className="text-slate-400 text-xs italic">
+                Cliquez sur une tranche pour la réécouter
+              </span>
+            </div>
           )}
         </div>
 
@@ -102,23 +126,59 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         </div>
       </div>
 
-      {/* The Segmented Heardle Progress Bar */}
+      {/* The Segmented Heardle Progress Bar with pixel-perfect numbers */}
       <div className="relative mb-3">
-        {/* Step duration markers above segments */}
-        <div className="flex justify-between text-xs tabular-nums text-slate-500 mb-1 px-0.5">
-          <span>0s</span>
-          {steps.map((sec, idx) => (
-            <span
-              key={idx}
-              className={idx + 1 <= currentStep || isRevealed ? 'text-emerald-400 font-semibold' : 'text-slate-600'}
-            >
-              {sec}s
+        {/* Step duration markers precisely anchored above their segment dividers */}
+        <div className="relative w-full h-6 mb-1 select-none pointer-events-none">
+          {/* 0s marker at the left edge */}
+          <div className="absolute left-0 top-0 flex flex-col items-start">
+            <span className="text-[11px] font-bold tabular-nums text-slate-400">
+              0s
             </span>
-          ))}
+            <div className="w-[1.5px] h-1.5 rounded-full mt-0.5 bg-slate-500" />
+          </div>
+
+          {/* Each step boundary marker aligned exactly above its divider */}
+          {steps.map((sec, idx) => {
+            const isLast = idx === steps.length - 1;
+            const pct = (sec / totalMax) * 100;
+            const isUnlocked = idx + 1 <= currentStep || isRevealed;
+
+            return (
+              <div
+                key={idx}
+                className={`absolute top-0 flex flex-col transition-colors ${
+                  isLast ? 'items-end' : 'items-center'
+                }`}
+                style={{
+                  left: isLast ? undefined : `${pct}%`,
+                  right: isLast ? 0 : undefined,
+                  transform: isLast ? 'none' : 'translateX(-50%)',
+                }}
+              >
+                <span
+                  className={`text-[11px] font-bold tabular-nums transition-colors ${
+                    isUnlocked ? 'text-emerald-400' : 'text-slate-600'
+                  }`}
+                >
+                  {sec}s
+                </span>
+                <div
+                  className={`w-[1.5px] h-1.5 rounded-full mt-0.5 transition-colors ${
+                    isUnlocked ? 'bg-emerald-400/80' : 'bg-slate-700'
+                  }`}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* Horizontal Segmented Bar Container */}
-        <div className="relative h-6 sm:h-7 w-full bg-[#18201a] rounded-[12px] overflow-hidden border border-white/10 flex shadow-inner">
+        <div
+          onClick={handleBarClick}
+          className="relative h-7 sm:h-8 w-full bg-[#18201a] rounded-[12px] overflow-hidden border border-white/10 flex shadow-inner cursor-pointer"
+          title="Cliquez pour écouter"
+        >
           {/* Slices for each step */}
           {steps.map((sec, idx) => {
             const stepStart = idx === 0 ? 0 : steps[idx - 1];
@@ -129,18 +189,39 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             return (
               <div
                 key={idx}
-                className={`relative h-full border-r border-slate-950/80 transition-all ${
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isUnlocked) {
+                    if (onPlaySegment) {
+                      onPlaySegment(stepStart, sec);
+                    } else {
+                      onSeek?.(stepStart);
+                    }
+                  }
+                }}
+                className={`group relative h-full border-r border-slate-950/80 transition-all ${
                   isUnlocked
                     ? isCurrent
-                      ? 'bg-emerald-500 shadow-[inset_0_0_12px_rgba(255,255,255,0.2)]'
-                      : 'bg-emerald-600/80'
-                    : 'bg-[#212923]'
+                      ? 'bg-emerald-500 shadow-[inset_0_0_12px_rgba(255,255,255,0.25)] hover:bg-emerald-400 ring-2 ring-emerald-400/60 ring-inset cursor-pointer'
+                      : 'bg-emerald-700/80 hover:bg-emerald-600/90 cursor-pointer'
+                    : 'bg-[#212923] cursor-not-allowed'
                 }`}
                 style={{ width: `${stepWidthPct}%` }}
+                title={
+                  isUnlocked
+                    ? `Étape ${idx + 1} (${stepStart}s - ${sec}s) : Cliquer pour écouter ce segment`
+                    : `Étape ${idx + 1} verrouillée (${sec}s)`
+                }
               >
-                {!isUnlocked && (
+                {!isUnlocked ? (
                   <div className="absolute inset-0 flex items-center justify-center opacity-30">
                     <Lock className="w-2.5 h-2.5 text-slate-400" />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center bg-white/10 transition-opacity">
+                    <span className="text-[10px] font-bold text-white drop-shadow">
+                      {stepStart}s-{sec}s
+                    </span>
                   </div>
                 )}
               </div>
@@ -155,11 +236,24 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         </div>
       </div>
 
-      {/* Center Controls: Play Button & Timers */}
+      {/* Center Controls: Play Button & Timers & Quick Replay */}
       <div className="flex items-center justify-between pt-1">
-        <span className="font-mono text-xs font-bold text-slate-400 w-16">
-          {formatTime(currentTime)}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xs font-bold text-slate-400 w-14">
+            {formatTime(isPlaying ? currentTime : (currentTime > 0 ? currentTime : currentStepStart))}
+          </span>
+
+          {/* Quick replay from 0s button */}
+          <button
+            onClick={() => onReplayAll?.()}
+            type="button"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 text-[11px] font-medium transition-colors cursor-pointer border border-slate-700/60"
+            title={`Tout réécouter depuis le début (0s à ${currentStepEnd}s)`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Tout écouter</span>
+          </button>
+        </div>
 
         {/* Big Play / Pause Circle */}
         <button
@@ -175,7 +269,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
               ? 'Arrêter la lecture'
               : isRevealed
               ? 'Écouter le morceau complet (30s)'
-              : `Écouter l'extrait (0s ➔ ${currentMaxDuration}s)`
+              : `Écouter l'étape ${currentStep} (${currentStepStart}s ➔ ${currentStepEnd}s)`
           }
         >
           {isPlaying ? (
@@ -186,7 +280,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         </button>
 
         <span className="font-mono text-xs font-bold text-slate-400 w-16 text-right">
-          {formatTime(currentMaxDuration)}
+          {formatTime(isRevealed ? 30 : currentStepEnd)}
         </span>
       </div>
 

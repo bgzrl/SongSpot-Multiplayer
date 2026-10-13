@@ -133,12 +133,14 @@ export const GameRound: React.FC<GameRoundProps> = ({
     if (!playerRef.current || !currentHint?.previewUrl) return;
 
     if (!hasGuessed) {
-      const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
-      playerRef.current.setRange(0, endSec);
+      const stepIdx = Math.min(myStep - 1, steps.length - 1);
+      const startSec = stepIdx === 0 ? 0 : steps[stepIdx - 1];
+      const endSec = steps[stepIdx] || 1.0;
+      playerRef.current.setRange(startSec, endSec);
 
       // Auto-play ONLY if myStep actually increased and is not the initial load
       if (myStep > prevStepRef.current && myStep > 1) {
-        playerRef.current.playSnippet(0, endSec);
+        playerRef.current.playSnippet(startSec, endSec);
       }
       prevStepRef.current = myStep;
     } else {
@@ -167,8 +169,33 @@ export const GameRound: React.FC<GameRoundProps> = ({
       playerRef.current.togglePlay(0, 30);
       return;
     }
-    const endSec = steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
-    playerRef.current.togglePlay(0, endSec);
+    const stepIdx = Math.min(myStep - 1, steps.length - 1);
+    const startSec = stepIdx === 0 ? 0 : steps[stepIdx - 1];
+    const endSec = steps[stepIdx] || 1.0;
+    // Always toggle strictly for the current step's excerpt
+    playerRef.current.togglePlay(startSec, endSec);
+  };
+
+  const handlePlaySegment = (startSec: number, endSec: number) => {
+    if (!playerRef.current) return;
+    playerRef.current.playSnippet(startSec, endSec);
+  };
+
+  const handleSeek = (targetSec: number) => {
+    if (!playerRef.current) return;
+    const endSec = hasGuessed
+      ? 30
+      : steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
+    const safeTarget = Math.max(0, Math.min(targetSec, endSec - 0.1));
+    playerRef.current.playSnippet(safeTarget, endSec);
+  };
+
+  const handleReplayAll = () => {
+    if (!playerRef.current) return;
+    const endSec = hasGuessed
+      ? 30
+      : steps[Math.min(myStep - 1, steps.length - 1)] || 1.0;
+    playerRef.current.playSnippet(0, endSec);
   };
 
   const handleGuessSubmit = (song: Song, queryText: string) => {
@@ -186,6 +213,8 @@ export const GameRound: React.FC<GameRoundProps> = ({
   };
 
   const handleSkipSnippet = () => {
+    // Explicitly stop previous snippet before skipping so playback resets to 0s
+    playerRef.current?.stop();
     soundFX.playClick();
     setAttempts(prev => [
       ...prev,
@@ -248,6 +277,9 @@ export const GameRound: React.FC<GameRoundProps> = ({
         currentTime={currentTime}
         isPlaying={isPlaying}
         onTogglePlay={handleTogglePlay}
+        onPlaySegment={handlePlaySegment}
+        onSeek={handleSeek}
+        onReplayAll={handleReplayAll}
         isRevealed={hasGuessed}
         volume={volume}
         onVolumeChange={handleVolumeChange}

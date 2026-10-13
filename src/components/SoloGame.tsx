@@ -210,12 +210,14 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     if (!playerRef.current || !currentSong) return;
 
     if (gameStatus === 'playing') {
-      const endSec = SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)];
-      playerRef.current.setRange(0, endSec);
+      const stepIdx = Math.min(currentStep - 1, SNIPPET_STEPS.length - 1);
+      const startSec = stepIdx === 0 ? 0 : SNIPPET_STEPS[stepIdx - 1];
+      const endSec = SNIPPET_STEPS[stepIdx];
+      playerRef.current.setRange(startSec, endSec);
 
-      // Auto-play ONLY if currentStep actually increased
+      // Auto-play ONLY if currentStep actually increased, playing ONLY this step's slice
       if (currentStep > prevStepRef.current && currentStep > 1) {
-        playerRef.current.playSnippet(0, endSec);
+        playerRef.current.playSnippet(startSec, endSec);
       }
       prevStepRef.current = currentStep;
     } else {
@@ -244,8 +246,35 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       playerRef.current.togglePlay(0, 30);
       return;
     }
-    const endSec = SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)];
-    playerRef.current.togglePlay(0, endSec);
+    const stepIdx = Math.min(currentStep - 1, SNIPPET_STEPS.length - 1);
+    const startSec = stepIdx === 0 ? 0 : SNIPPET_STEPS[stepIdx - 1];
+    const endSec = SNIPPET_STEPS[stepIdx];
+    // Toggles playback strictly for the current step's excerpt
+    playerRef.current.togglePlay(startSec, endSec);
+  };
+
+  const handlePlaySegment = (startSec: number, endSec: number) => {
+    if (!playerRef.current) return;
+    playerRef.current.playSnippet(startSec, endSec);
+  };
+
+  const handleSeek = (targetSec: number) => {
+    if (!playerRef.current) return;
+    const endSec =
+      gameStatus === 'playing'
+        ? SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)]
+        : 30;
+    const safeTarget = Math.max(0, Math.min(targetSec, endSec - 0.1));
+    playerRef.current.playSnippet(safeTarget, endSec);
+  };
+
+  const handleReplayAll = () => {
+    if (!playerRef.current) return;
+    const endSec =
+      gameStatus === 'playing'
+        ? SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)]
+        : 30;
+    playerRef.current.playSnippet(0, endSec);
   };
 
   const handleGuess = (song: Song, queryText: string) => {
@@ -385,6 +414,9 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
   const handleSkip = () => {
     if (gameStatus !== 'playing') return;
+
+    // Explicitly stop previous snippet before unlocking next step so playback resets to 0s
+    playerRef.current?.stop();
 
     soundFX.playSkip();
     setAttempts(prev => [...prev, { type: 'skipped' }]);
@@ -604,6 +636,9 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
             currentTime={currentTime}
             isPlaying={isPlaying}
             onTogglePlay={handleTogglePlay}
+            onPlaySegment={handlePlaySegment}
+            onSeek={handleSeek}
+            onReplayAll={handleReplayAll}
             isRevealed={gameStatus !== 'playing'}
             volume={volume}
             onVolumeChange={handleVolumeChange}

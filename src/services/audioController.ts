@@ -15,6 +15,7 @@ export class SnippetAudioPlayer {
   private audio: HTMLAudioElement | null = null;
   private animFrameId: number | null = null;
   private currentUrl: string = '';
+  private lastStartSec: number = 0;
   private maxDurationSec: number = 1.0;
   private onTimeUpdateCallback?: (currentTime: number, progressPercent: number) => void;
   private onPlayStateChangeCallback?: (isPlaying: boolean) => void;
@@ -73,19 +74,37 @@ export class SnippetAudioPlayer {
     this.onPlayStateChangeCallback = onPlayStateChange;
   }
 
-  load(url: string, _startDurationSec: number = 0, maxDurationSec: number = 1.0) {
+  load(url: string, startDurationSec: number = 0, maxDurationSec: number = 1.0) {
     if (this.isDestroyed || !this.audio) return;
     this.stop();
     this.currentUrl = url;
-    this.maxDurationSec = Math.max(0.5, maxDurationSec);
+    this.lastStartSec = Math.max(0, startDurationSec);
+    this.maxDurationSec = Math.max(this.lastStartSec + 0.2, maxDurationSec);
     if (this.audio.src !== url) {
       this.audio.src = url;
       this.audio.load();
     }
+    try {
+      this.audio.currentTime = this.lastStartSec;
+    } catch {}
+    this.onTimeUpdateCallback?.(
+      this.lastStartSec,
+      this.maxDurationSec > 0 ? this.lastStartSec / this.maxDurationSec : 0
+    );
   }
 
-  setRange(_startDurationSec: number = 0, maxDurationSec: number = 1.0) {
-    this.maxDurationSec = Math.max(0.5, maxDurationSec);
+  setRange(startDurationSec: number = 0, maxDurationSec: number = 1.0) {
+    this.lastStartSec = Math.max(0, startDurationSec);
+    this.maxDurationSec = Math.max(this.lastStartSec + 0.2, maxDurationSec);
+    if (this.audio && !this.isPlayingState) {
+      try {
+        this.audio.currentTime = this.lastStartSec;
+      } catch {}
+      this.onTimeUpdateCallback?.(
+        this.lastStartSec,
+        this.maxDurationSec > 0 ? this.lastStartSec / this.maxDurationSec : 0
+      );
+    }
   }
 
   setVolume(volume: number) {
@@ -102,16 +121,18 @@ export class SnippetAudioPlayer {
     return this.volumeLevel;
   }
 
-  // Always plays from 0 seconds up to maxDurationSec
+  // Plays strictly from startDurationSec up to maxDurationSec
   // Cancels any other playing audio in the entire application
-  playSnippet(_startDurationSec: number = 0, maxDurationSec?: number) {
+  playSnippet(startDurationSec: number = 0, maxDurationSec?: number) {
     if (this.isDestroyed || !this.audio || !this.currentUrl) return;
 
     // 1. Immediately silence and stop any other player across the entire app
     stopAllAudio(this);
 
+    const safeStart = Math.max(0, startDurationSec);
+    this.lastStartSec = safeStart;
     if (maxDurationSec !== undefined) {
-      this.maxDurationSec = Math.max(0.5, maxDurationSec);
+      this.maxDurationSec = Math.max(safeStart + 0.2, maxDurationSec);
     }
 
     const currentSession = ++this.sessionId;
@@ -121,34 +142,54 @@ export class SnippetAudioPlayer {
       this.animFrameId = null;
     }
 
-    // Reset playhead to start
+    // 2. Pause first to break any active audio pipeline before seeking
     try {
-      this.audio.currentTime = 0;
+      this.audio.pause();
     } catch {}
-    this.audio.volume = this.volumeLevel;
 
+    // 3. Immediately seek to safeStart while paused
+    try {
+      this.audio.currentTime = safeStart;
+    } catch {}
+
+    this.audio.volume = this.volumeLevel;
     this.isPlayingState = true;
     this.onPlayStateChangeCallback?.(true);
 
+    // Immediately report the initial position
+    this.onTimeUpdateCallback?.(
+      safeStart,
+      this.maxDurationSec > 0 ? safeStart / this.maxDurationSec : 0
+    );
+
     const promise = this.audio.play();
+
+    const onPlayReady = () => {
+      // If stopped or another session started while promise was resolving, abort!
+      if (this.isDestroyed || this.sessionId !== currentSession || !this.isPlayingState) {
+        if (this.audio) {
+          try {
+            this.audio.pause();
+          } catch {}
+        }
+        return;
+      }
+
+      // 4. Critical check: If browser ignored seek, force seek now
+      if (this.audio && Math.abs(this.audio.currentTime - safeStart) > 0.2) {
+        try {
+          this.audio.currentTime = safeStart;
+        } catch {}
+      }
+
+      this.startPrecisionLoop(currentSession);
+    };
 
     if (promise !== undefined) {
       promise
-        .then(() => {
-          // If stopped or another session started while promise was resolving, abort!
-          if (this.isDestroyed || this.sessionId !== currentSession || !this.isPlayingState) {
-            if (this.audio) {
-              try {
-                this.audio.pause();
-              } catch {}
-            }
-            return;
-          }
-          this.startPrecisionLoop(currentSession);
-        })
+        .then(onPlayReady)
         .catch(err => {
           if (this.sessionId === currentSession && !this.isDestroyed) {
-            // AbortError is normal when quickly interrupted by pause/stop
             if (err?.name !== 'AbortError') {
               console.warn('Playback interrupted:', err);
             }
@@ -156,16 +197,22 @@ export class SnippetAudioPlayer {
           }
         });
     } else {
-      this.startPrecisionLoop(currentSession);
+      onPlayReady();
     }
   }
 
-  togglePlay(_startDurationSec: number = 0, maxDurationSec?: number) {
+  togglePlay(startDurationSec?: number, maxDurationSec?: number) {
     if (this.isPlayingState) {
       this.stop();
     } else {
-      this.playSnippet(0, maxDurationSec);
+      const start = startDurationSec !== undefined ? startDurationSec : this.lastStartSec;
+      const end = maxDurationSec !== undefined ? maxDurationSec : this.maxDurationSec;
+      this.playSnippet(start, end);
     }
+  }
+
+  seekAndPlay(targetSec: number, maxDurationSec?: number) {
+    this.playSnippet(targetSec, maxDurationSec);
   }
 
   stop() {
@@ -179,7 +226,7 @@ export class SnippetAudioPlayer {
     if (this.audio) {
       try {
         this.audio.pause();
-        this.audio.currentTime = 0;
+        this.audio.currentTime = this.lastStartSec;
       } catch {
         // ignore
       }
@@ -187,7 +234,10 @@ export class SnippetAudioPlayer {
 
     this.isPlayingState = false;
     this.onPlayStateChangeCallback?.(false);
-    this.onTimeUpdateCallback?.(0, 0);
+    this.onTimeUpdateCallback?.(
+      this.lastStartSec,
+      this.maxDurationSec > 0 ? this.lastStartSec / this.maxDurationSec : 0
+    );
   }
 
   private startPrecisionLoop(expectedSession: number) {
