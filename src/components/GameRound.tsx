@@ -298,39 +298,6 @@ export const GameRound: React.FC<GameRoundProps> = ({
           steps={steps}
           imposedArtist={imposedArtist}
         />
-
-        {/* Skip button when player found the song */}
-        {hasGuessed && onForceEndRound && (
-          <div className="mt-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs">
-            <span className="text-emerald-300 font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Chanson trouvée ! Pas envie d'attendre la fin du chrono ?</span>
-            </span>
-            <button
-              onClick={onForceEndRound}
-              type="button"
-              className="w-full sm:w-auto px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg transition-all active:scale-95 cursor-pointer shadow-md whitespace-nowrap"
-            >
-              Passer à la suite ⏩ (Skip)
-            </button>
-          </div>
-        )}
-
-        {/* Finish button on step 6 */}
-        {!hasGuessed && myStep >= steps.length && (
-          <div className="mt-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs">
-            <span className="text-rose-300 font-semibold flex items-center gap-1.5">
-              <span>⚠️ Tous les extraits écoutés (15s). Vous séchez ?</span>
-            </span>
-            <button
-              onClick={handleSkipSnippet}
-              type="button"
-              className="w-full sm:w-auto px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-lg transition-all active:scale-95 cursor-pointer shadow-md whitespace-nowrap"
-            >
-              Finir la manche et révéler 🏳️
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Live Multiplayer Status Bar (Lower stacking context z-10 so dropdown renders over it) */}
