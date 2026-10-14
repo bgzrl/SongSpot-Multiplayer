@@ -1,5 +1,5 @@
-import React from 'react';
-import { Play, Square, Volume2, Volume1, VolumeX, Lock } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { Play, Square, Volume2, Volume1, VolumeX, Lock, GripVertical } from 'lucide-react';
 
 interface AudioWaveformProps {
   steps: number[];
@@ -42,10 +42,18 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       ? (steps[currentStep] - steps[currentStep - 1]).toFixed(1)
       : null;
 
+  // Draggable scrub state
+  const barRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragTime, setDragTime] = useState<number | null>(null);
+
+  const maxAllowedSec = isRevealed ? 30 : currentStepEnd;
+  const effectiveTime = dragTime !== null ? dragTime : currentTime;
+
   // Playhead scrubber position (0 to 1) across total duration
   const playheadRatio = isRevealed
-    ? Math.min(1, Math.max(0, currentTime / 30))
-    : Math.min(1, Math.max(0, currentTime / totalMax));
+    ? Math.min(1, Math.max(0, effectiveTime / 30))
+    : Math.min(1, Math.max(0, effectiveTime / totalMax));
 
   const volumePercent = Math.round(safeVolume * 100);
 
@@ -55,13 +63,57 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     return s.toFixed(1) + 's';
   };
 
-  const handleBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const targetSec = isRevealed ? clickRatio * 30 : clickRatio * totalMax;
-    if (targetSec <= currentStepEnd) {
-      onSeek?.(targetSec);
+  const getTimeFromPointerX = useCallback((clientX: number): number => {
+    const el = barRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const rawSec = isRevealed ? ratio * 30 : ratio * totalMax;
+    return Math.min(maxAllowedSec, Math.max(0, rawSec));
+  }, [isRevealed, totalMax, maxAllowedSec]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const el = barRef.current;
+    if (!el) return;
+    el.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    const targetSec = getTimeFromPointerX(e.clientX);
+    setDragTime(targetSec);
+    onSeek?.(targetSec);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const targetSec = getTimeFromPointerX(e.clientX);
+    setDragTime(targetSec);
+    onSeek?.(targetSec);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const el = barRef.current;
+    if (el && el.hasPointerCapture(e.pointerId)) {
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {}
     }
+    const finalSec = getTimeFromPointerX(e.clientX);
+    setIsDragging(false);
+    setDragTime(null);
+    onSeek?.(finalSec);
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const el = barRef.current;
+    if (el && el.hasPointerCapture(e.pointerId)) {
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+    setIsDragging(false);
+    setDragTime(null);
   };
 
   return (
@@ -169,11 +221,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           })}
         </div>
 
-        {/* Horizontal Segmented Bar Container */}
+        {/* Horizontal Segmented Bar Container with Drag/Slide Support */}
         <div
-          onClick={handleBarClick}
-          className="relative h-7 sm:h-8 w-full bg-[#18201a] rounded-[12px] overflow-hidden border border-white/10 flex shadow-inner cursor-pointer"
-          title="Cliquez pour écouter"
+          ref={barRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          className="relative h-8 sm:h-9 w-full bg-[#18201a] rounded-[12px] overflow-hidden border border-white/10 flex shadow-inner cursor-ew-resize touch-none select-none"
+          title="Glissez ou cliquez pour sélectionner le moment d'écoute"
         >
           {/* Slices for each step */}
           {steps.map((sec, idx) => {
@@ -185,27 +241,17 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             return (
               <div
                 key={idx}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isUnlocked) {
-                    if (onPlaySegment) {
-                      onPlaySegment(stepStart, sec);
-                    } else {
-                      onSeek?.(stepStart);
-                    }
-                  }
-                }}
                 className={`group relative h-full border-r border-slate-950/80 transition-all ${
                   isUnlocked
                     ? isCurrent
-                      ? 'bg-emerald-500 shadow-[inset_0_0_12px_rgba(255,255,255,0.25)] hover:bg-emerald-400 ring-2 ring-emerald-400/60 ring-inset cursor-pointer'
-                      : 'bg-emerald-700/80 hover:bg-emerald-600/90 cursor-pointer'
-                    : 'bg-[#212923] cursor-not-allowed'
+                      ? 'bg-emerald-500 shadow-[inset_0_0_12px_rgba(255,255,255,0.25)] hover:bg-emerald-400 ring-2 ring-emerald-400/60 ring-inset'
+                      : 'bg-emerald-700/80 hover:bg-emerald-600/90'
+                    : 'bg-[#212923] opacity-60'
                 }`}
                 style={{ width: `${stepWidthPct}%` }}
                 title={
                   isUnlocked
-                    ? `Étape ${idx + 1} (${stepStart}s - ${sec}s) : Cliquer pour écouter ce segment`
+                    ? `Étape ${idx + 1} (${stepStart}s - ${sec}s)`
                     : `Étape ${idx + 1} verrouillée (${sec}s)`
                 }
               >
@@ -224,11 +270,33 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             );
           })}
 
-          {/* Dynamic Playhead scrubber cursor moving along during playback */}
+          {/* Dynamic Playhead scrubber highlight filling up to current position */}
           <div
-            className="absolute top-0 bottom-0 left-0 bg-white/40 border-r-2 border-white pointer-events-none transition-all duration-75 shadow-[0_0_10px_white]"
+            className="absolute top-0 bottom-0 left-0 bg-white/30 border-r-2 border-white pointer-events-none transition-all duration-75 shadow-[0_0_12px_rgba(255,255,255,0.8)]"
             style={{ width: `${playheadRatio * 100}%` }}
           />
+
+          {/* Draggable Scrubber Thumb & Indicator Needle */}
+          <div
+            className={`absolute top-0 bottom-0 -ml-2 w-4 flex flex-col items-center justify-center pointer-events-none transition-transform z-20 ${
+              isDragging ? 'scale-110' : ''
+            }`}
+            style={{
+              left: `${playheadRatio * 100}%`,
+            }}
+          >
+            {/* Draggable Handle pill */}
+            <div className="w-3.5 h-6 rounded-md bg-white text-slate-950 shadow-[0_0_12px_rgba(255,255,255,0.9)] flex items-center justify-center border border-slate-300 ring-2 ring-emerald-500/50">
+              <GripVertical className="w-3 h-3 text-slate-800" />
+            </div>
+
+            {/* Time badge tooltip while dragging */}
+            {isDragging && (
+              <div className="absolute -top-7 bg-slate-950 text-emerald-400 border border-emerald-500/50 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
+                {effectiveTime.toFixed(1)}s
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

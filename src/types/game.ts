@@ -107,3 +107,10 @@ export interface PlaylistInfo {
   gradient: string;
   songsCount: number;
 }
+
+export interface ArtistInfo {
+  id: number | string;
+  name: string;
+  picture: string;
+  nb_fan?: number;
+}

@@ -1,4 +1,4 @@
-import { Song, PlaylistInfo } from '../src/types/game.js';
+import { Song, PlaylistInfo, ArtistInfo } from '../src/types/game.js';
 
 export const PLAYLIST_PRESETS: PlaylistInfo[] = [
   {
@@ -107,6 +107,8 @@ export function isLegitSong(title: string, artist: string): boolean {
     /\bsample\s+pack\b/i,
     /\bfree\s+beat\b/i,
     /\bwav\s+leak\b/i,
+    /\bparodie\b/i,
+    /\bparody\b/i,
   ];
   return !badPatterns.some(re => re.test(title) || re.test(artist));
 }
@@ -131,48 +133,86 @@ export function registerActiveGameSongs(songs: Song[]) {
   }
 }
 
+
 /**
- * Imports any Spotify or Deezer playlist from URL.
- * Automatically resolves audio previews and song metadata.
+ * Imports any Spotify or Deezer playlist, album or artist from URL.
+ * Automatically resolves audio previews and song metadata with redirect support.
  */
 export async function importPlaylistFromUrl(
   url: string
 ): Promise<{ success: boolean; id: string; name: string; songs: Song[] }> {
-  const cleanUrl = (url || '').trim();
+  let cleanUrl = (url || '').trim();
+  if (!cleanUrl) {
+    throw new Error('Veuillez fournir une URL de playlist ou d\'album valide');
+  }
 
-  // 1. Deezer playlist link: e.g. https://www.deezer.com/fr/playlist/1071669561 or https://deezer.page.link/...
-  const deezerMatch = cleanUrl.match(/playlist\/(\d+)/i);
-  if (cleanUrl.includes('deezer.com') && deezerMatch && deezerMatch[1]) {
-    const playlistId = deezerMatch[1];
-    const res = await fetch(`https://api.deezer.com/playlist/${playlistId}`);
+  // Auto prepend https:// if missing
+  if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+    cleanUrl = `https://${cleanUrl}`;
+  }
+
+  // Follow redirects to resolve mobile share short links (deezer.page.link, spotify.link, etc.)
+  try {
+    const redirectRes = await fetch(cleanUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+    if (redirectRes.url && redirectRes.url !== cleanUrl) {
+      cleanUrl = redirectRes.url;
+    }
+  } catch {}
+
+  // 1. Deezer links: playlist, album or artist
+  const isDeezer = cleanUrl.includes('deezer.com') || cleanUrl.includes('deezer.page.link');
+  const deezerMatch = cleanUrl.match(/(playlist|album|artist)\/(\d+)/i);
+
+  if (isDeezer && deezerMatch) {
+    const contentType = deezerMatch[1].toLowerCase();
+    const contentId = deezerMatch[2];
+
+    const endpoint = contentType === 'album'
+      ? `https://api.deezer.com/album/${contentId}`
+      : contentType === 'artist'
+      ? `https://api.deezer.com/artist/${contentId}/top?limit=100`
+      : `https://api.deezer.com/playlist/${contentId}`;
+
+    const res = await fetch(endpoint);
     if (!res.ok) {
-      throw new Error('Impossible de contacter Deezer pour cette playlist.');
+      throw new Error(`Impossible de contacter Deezer pour ce lien (${res.status}).`);
     }
     const data: any = await res.json();
     if (data.error) {
-      throw new Error(`Erreur Deezer: ${data.error.message || 'Playlist privée ou introuvable'}`);
+      throw new Error(`Erreur Deezer: ${data.error.message || 'Contenu privé ou introuvable'}`);
     }
 
-    const playlistName = data.title || 'Playlist Deezer';
-    const rawTracks = data.tracks?.data || [];
+    const playlistName = data.title || data.name || (contentType === 'album' ? 'Album Deezer' : 'Playlist Deezer');
+    const rawTracks = data.tracks?.data || (Array.isArray(data.data) ? data.data : []);
     const songs: Song[] = [];
+    const seenTitles = new Set<string>();
 
     for (const t of rawTracks) {
       if (t.preview) {
+        const core = extractCoreTitle(t.title);
+        if (core && seenTitles.has(core)) continue;
+        if (core) seenTitles.add(core);
+
         songs.push({
           id: `dz_${t.id}`,
-          title: t.title,
-          artist: t.artist?.name || 'Artiste Inconnu',
-          album: t.album?.title || '',
+          title: t.title_short || t.title,
+          artist: t.artist?.name || data.artist?.name || 'Artiste Inconnu',
+          album: t.album?.title || data.title || '',
           previewUrl: t.preview,
-          artwork: t.album?.cover_medium || t.album?.cover_big || '',
+          artwork: t.album?.cover_medium || data.cover_medium || data.picture_medium || '',
           year: t.release_date ? parseInt(t.release_date.slice(0, 4)) : undefined,
         });
       }
     }
 
     if (songs.length === 0) {
-      throw new Error('Aucun extrait audio jouable (preview 30s) trouvé dans cette playlist Deezer.');
+      throw new Error('Aucun extrait audio jouable (preview 30s) trouvé dans ce lien Deezer.');
     }
 
     customUrlPlaylists.set('custom-link', { name: playlistName, songs });
@@ -180,11 +220,15 @@ export async function importPlaylistFromUrl(
     return { success: true, id: 'custom-link', name: playlistName, songs };
   }
 
-  // 2. Spotify playlist link: e.g. https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
-  const spotifyMatch = cleanUrl.match(/playlist\/([a-zA-Z0-9]+)/i);
-  if (cleanUrl.includes('spotify.com') && spotifyMatch && spotifyMatch[1]) {
-    const playlistId = spotifyMatch[1];
-    const embedRes = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`, {
+  // 2. Spotify links: playlist, album or artist
+  const isSpotify = cleanUrl.includes('spotify.com') || cleanUrl.includes('spotify.link');
+  const spotifyMatch = cleanUrl.match(/(playlist|album|artist)\/([a-zA-Z0-9]+)/i);
+
+  if (isSpotify && spotifyMatch) {
+    const contentType = spotifyMatch[1].toLowerCase();
+    const contentId = spotifyMatch[2];
+
+    const embedRes = await fetch(`https://open.spotify.com/embed/${contentType}/${contentId}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -193,14 +237,15 @@ export async function importPlaylistFromUrl(
     });
 
     if (!embedRes.ok) {
-      throw new Error('Impossible de contacter Spotify pour cette playlist.');
+      throw new Error('Impossible de contacter Spotify pour ce lien.');
     }
 
     const html = await embedRes.text();
     const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/);
 
-    let playlistName = 'Playlist Spotify';
+    let playlistName = contentType === 'album' ? 'Album Spotify' : 'Playlist Spotify';
     const songs: Song[] = [];
+    const seenTitles = new Set<string>();
 
     if (nextDataMatch && nextDataMatch[1]) {
       try {
@@ -213,6 +258,10 @@ export async function importPlaylistFromUrl(
         const trackList = entity?.trackList || [];
         for (const t of trackList) {
           if (t.audioPreview?.url) {
+            const core = extractCoreTitle(t.title);
+            if (core && seenTitles.has(core)) continue;
+            if (core) seenTitles.add(core);
+
             songs.push({
               id: `sp_${t.uri || Math.random().toString(36).slice(2)}`,
               title: t.title,
@@ -224,21 +273,23 @@ export async function importPlaylistFromUrl(
           }
         }
 
-        // For tracks where Spotify embed doesn't include audioPreview, resolve via fast Deezer search
-        if (songs.length < 8 && trackList.length > 0) {
-          const candidates = trackList.slice(0, 15);
+        // For tracks where Spotify embed doesn't include audioPreview, resolve via Deezer search
+        if (songs.length < 10 && trackList.length > 0) {
+          const candidates = trackList.slice(0, 20);
           for (const cand of candidates) {
-            if (songs.some(s => s.title.toLowerCase() === cand.title.toLowerCase())) continue;
+            const core = extractCoreTitle(cand.title);
+            if (core && seenTitles.has(core)) continue;
             try {
               const query = `${cand.title} ${cand.subtitle || ''}`.trim();
               const dzResults = await searchFreeMusic(query, 1);
               if (dzResults.length > 0 && dzResults[0].previewUrl) {
+                if (core) seenTitles.add(core);
                 songs.push({
                   ...dzResults[0],
                   id: `sp_res_${dzResults[0].id}`,
                 });
               }
-              if (songs.length >= 15) break;
+              if (songs.length >= 25) break;
             } catch {}
           }
         }
@@ -256,7 +307,7 @@ export async function importPlaylistFromUrl(
     return { success: true, id: 'custom-link', name: playlistName, songs };
   }
 
-  throw new Error('Format de lien non reconnu. Veuillez fournir une URL de playlist Spotify ou Deezer valide.');
+  throw new Error('Lien non reconnu. Collez un lien valide de playlist ou album Spotify ou Deezer (ex: open.spotify.com/playlist/... ou deezer.com/playlist/...)');
 }
 
 /**
@@ -706,6 +757,204 @@ export function pickDiverseSongs(songs: Song[], count: number): Song[] {
 }
 
 /**
+ * Searches artists on Deezer with fan count ranking and card metadata.
+ */
+export async function searchArtists(query: string, limit = 8): Promise<ArtistInfo[]> {
+  const clean = (query || '').trim();
+  if (!clean || clean.length < 1) return [];
+
+  try {
+    const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(clean)}&limit=${Math.max(limit * 2, 20)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return [];
+    const json: any = await res.json();
+    const data: any[] = Array.isArray(json.data) ? json.data : [];
+
+    const normQ = clean.toLowerCase();
+    data.sort((a, b) => {
+      const aName = (a.name || '').toLowerCase();
+      const bName = (b.name || '').toLowerCase();
+      const aExact = aName === normQ;
+      const bExact = bName === normQ;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+
+      const aStarts = aName.startsWith(normQ);
+      const bStarts = bName.startsWith(normQ);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      return (b.nb_fan || 0) - (a.nb_fan || 0);
+    });
+
+    const artists: ArtistInfo[] = [];
+    const seenNames = new Set<string>();
+
+    for (const a of data) {
+      if (!a.name) continue;
+      const norm = a.name.toLowerCase().trim();
+      if (seenNames.has(norm)) continue;
+      seenNames.add(norm);
+
+      artists.push({
+        id: a.id,
+        name: a.name,
+        picture: a.picture_medium || a.picture_small || a.picture_big || a.picture || '',
+        nb_fan: a.nb_fan || 0,
+      });
+      if (artists.length >= limit) break;
+    }
+    return artists;
+  } catch (err) {
+    console.error('Error searching artists:', err);
+    return [];
+  }
+}
+
+/**
+ * Loads the complete authentic discography of an artist across top tracks,
+ * studio albums, and search queries, with strict deduplication and audio preview verification.
+ */
+export async function getArtistFullDiscography(artistTarget: string): Promise<Song[]> {
+  const cleanTarget = (artistTarget || '').trim();
+  if (!cleanTarget) return [];
+
+  const targetNorm = normalizeString(cleanTarget);
+
+  // 1. Identify authentic artist
+  let artistId: number | string | null = null;
+  let verifiedArtistName = cleanTarget;
+  let artistPicture = '';
+
+  try {
+    const artistSearch = await searchArtists(cleanTarget, 8);
+    const exact = artistSearch.find(a => normalizeString(a.name) === targetNorm);
+    const starts = artistSearch.find(a => normalizeString(a.name).startsWith(targetNorm));
+    const chosenArtist = exact || starts || artistSearch[0];
+    if (chosenArtist) {
+      artistId = chosenArtist.id;
+      verifiedArtistName = chosenArtist.name;
+      artistPicture = chosenArtist.picture;
+    }
+  } catch {}
+
+  const rawTracks: any[] = [];
+
+  // 2. Query top tracks, albums and direct track searches concurrently
+  const fetchPromises: Promise<any>[] = [];
+
+  if (artistId) {
+    fetchPromises.push(
+      fetch(`https://api.deezer.com/artist/${artistId}/top?limit=100`, { signal: AbortSignal.timeout(4000) })
+        .then(r => r.json())
+        .then(j => {
+          if (Array.isArray(j.data)) rawTracks.push(...j.data);
+        })
+        .catch(() => {})
+    );
+
+    fetchPromises.push(
+      fetch(`https://api.deezer.com/artist/${artistId}/albums?limit=25`, { signal: AbortSignal.timeout(4000) })
+        .then(r => r.json())
+        .then(async j => {
+          const albums = (Array.isArray(j.data) ? j.data : []).slice(0, 10);
+          const albumPromises = albums.map((al: any) =>
+            fetch(`https://api.deezer.com/album/${al.id}/tracks?limit=50`, { signal: AbortSignal.timeout(3500) })
+              .then(r => r.json())
+              .then(aj => {
+                if (Array.isArray(aj.data)) {
+                  for (const tr of aj.data) {
+                    if (!tr.album && al.cover_medium) {
+                      tr.album = { title: al.title, cover_medium: al.cover_medium, cover_xl: al.cover_xl };
+                    }
+                    rawTracks.push(tr);
+                  }
+                }
+              })
+              .catch(() => {})
+          );
+          await Promise.allSettled(albumPromises);
+        })
+        .catch(() => {})
+    );
+  }
+
+  fetchPromises.push(
+    fetch(`https://api.deezer.com/search?q=${encodeURIComponent(verifiedArtistName)}&limit=100`, { signal: AbortSignal.timeout(4000) })
+      .then(r => r.json())
+      .then(j => {
+        if (Array.isArray(j.data)) rawTracks.push(...j.data);
+      })
+      .catch(() => {})
+  );
+
+  await Promise.allSettled(fetchPromises);
+
+  // 3. Fallback to iTunes if Deezer returned few tracks
+  if (rawTracks.length < 5) {
+    try {
+      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTarget)}&entity=song&limit=100&country=FR`;
+      const res = await fetch(itunesUrl, { signal: AbortSignal.timeout(3500) });
+      if (res.ok) {
+        const json = await res.json();
+        const results = Array.isArray(json.results) ? json.results : [];
+        for (const item of results) {
+          if (!item.previewUrl || !item.trackName) continue;
+          rawTracks.push({
+            id: item.trackId,
+            title: item.trackName,
+            artist: { name: item.artistName },
+            album: {
+              title: item.collectionName || '',
+              cover_medium: item.artworkUrl100?.replace('100x100bb', '600x600bb'),
+            },
+            preview: item.previewUrl,
+            release_date: item.releaseDate,
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Strict Deduplication and Legitimacy filtering
+  const seenTitles = new Set<string>();
+  const uniqueSongs: Song[] = [];
+
+  for (const t of rawTracks) {
+    if (!t.preview || !t.title) continue;
+
+    const trackArtist = t.artist?.name || verifiedArtistName;
+    if (!isLegitSong(t.title, trackArtist)) continue;
+
+    const tArtNorm = normalizeString(trackArtist);
+    const titleNorm = normalizeString(t.title);
+    const isArtistMatch =
+      tArtNorm.includes(targetNorm) ||
+      targetNorm.includes(tArtNorm) ||
+      titleNorm.includes(targetNorm);
+
+    if (!isArtistMatch && rawTracks.length > 10) continue;
+
+    const core = extractCoreTitle(t.title) || normalizeString(t.title).slice(0, 15);
+    if (!core || seenTitles.has(core)) continue;
+    seenTitles.add(core);
+
+    uniqueSongs.push({
+      id: `disco_${t.id || Math.random().toString(36).slice(2)}`,
+      title: t.title_short || t.title,
+      artist: trackArtist,
+      album: t.album?.title || '',
+      previewUrl: t.preview,
+      artwork: t.album?.cover_xl || t.album?.cover_medium || artistPicture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+      year: t.release_date ? parseInt(String(t.release_date).slice(0, 4)) : undefined,
+    });
+  }
+
+  const shuffled = shuffleArray(uniqueSongs);
+  return shuffled;
+}
+
+/**
  * Gets songs for a game round from official charts, playlist or dedicated artist.
  * Ensures maximum variety and real music only.
  */
@@ -714,28 +963,20 @@ export async function getGameSongs(
   count = 10,
   customArtist?: string
 ): Promise<Song[]> {
-  // 1. Dedicated Single Artist Mode or Custom Artist Search
+  // 1. Dedicated Single Artist Mode or Custom Artist Search (Full Discography, 0 duplicates!)
   if (playlistId === 'single-artist' || (customArtist && customArtist.trim().length > 1)) {
-    // If no artist was typed by the user, pick a random artist from presets so it's NOT always the same one!
     const artistTarget = (
       customArtist && customArtist.trim().length > 1
         ? customArtist.trim()
         : POPULAR_ARTISTS_PRESETS[Math.floor(Math.random() * POPULAR_ARTISTS_PRESETS.length)]
     ).trim();
 
-    const artistSongs = await searchFreeMusic(artistTarget, Math.max(count * 3, 35));
-
-    // Filter to songs strictly belonging to the requested artist (case-insensitive)
-    const targetNorm = normalizeString(artistTarget);
-    const strictlyByArtist = artistSongs.filter(s => {
-      const artNorm = normalizeString(s.artist);
-      return artNorm.includes(targetNorm) || targetNorm.includes(artNorm);
-    });
-
-    const chosen = strictlyByArtist.length >= 3 ? strictlyByArtist : artistSongs;
-    const shuffledArtistSongs = shuffleArray(chosen).slice(0, count);
-    registerActiveGameSongs(shuffledArtistSongs);
-    return shuffledArtistSongs;
+    const fullDiscography = await getArtistFullDiscography(artistTarget);
+    const chosen = count > 0 && count < fullDiscography.length
+      ? fullDiscography.slice(0, count)
+      : fullDiscography;
+    registerActiveGameSongs(chosen);
+    return chosen;
   }
 
   // 1.5 Custom Link Playlist

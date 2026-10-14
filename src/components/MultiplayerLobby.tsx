@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { RoomState, PlaylistInfo } from '../types/game';
+import React, { useState, useEffect } from 'react';
+import { RoomState, PlaylistInfo, ArtistInfo } from '../types/game';
 import {
   Copy,
   Check,
@@ -39,6 +39,31 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const [playlistUrlInput, setPlaylistUrlInput] = useState('');
   const [importingUrl, setImportingUrl] = useState(false);
   const [importUrlError, setImportUrlError] = useState<string | null>(null);
+  const [artistSuggestions, setArtistSuggestions] = useState<ArtistInfo[]>([]);
+  const [showArtistDropdown, setShowArtistDropdown] = useState(false);
+
+  // Debounce artist suggestions for single-artist mode
+  useEffect(() => {
+    const q = customSearch.trim();
+    if (q.length < 1 || roomState.settings.playlistId !== 'single-artist') {
+      setArtistSuggestions([]);
+      setShowArtistDropdown(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/music/artists?q=${encodeURIComponent(q)}&limit=6`);
+        if (res.ok) {
+          const list = await res.json();
+          setArtistSuggestions(list);
+          setShowArtistDropdown(list.length > 0);
+        }
+      } catch {
+        setArtistSuggestions([]);
+      }
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [customSearch, roomState.settings.playlistId]);
 
   const isHost = roomState.hostId === currentUserId;
   const me = roomState.players.find(p => p.id === currentUserId);
@@ -61,20 +86,32 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleCustomSearchApply = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCustomSearchApply = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = customSearch.trim();
     onUpdateSettings({
-      customArtist: customSearch.trim(),
-      playlistName: customSearch.trim() ? `👑 100% ${customSearch.trim()}` : '⚡ Rap FR',
+      customArtist: clean,
+      playlistName: clean ? `👑 100% ${clean}` : '⚡ Rap FR',
     });
+    setShowArtistDropdown(false);
+  };
+
+  const handleSelectArtistCard = (art: ArtistInfo) => {
+    setCustomSearch(art.name);
+    onUpdateSettings({
+      playlistId: 'single-artist',
+      customArtist: art.name,
+      playlistName: `👑 100% ${art.name}`,
+    });
+    setShowArtistDropdown(false);
   };
 
   const handleImportPlaylistUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = playlistUrlInput.trim();
-    if (!url.startsWith('http')) {
-      setImportUrlError('Veuillez coller un lien valide (Spotify ou Deezer)');
-      return;
+    let url = playlistUrlInput.trim();
+    if (!url) return;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
     }
     setImportingUrl(true);
     setImportUrlError(null);
@@ -400,21 +437,61 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
 
                 {isHost && (
                   <>
-                    <form onSubmit={handleCustomSearchApply} className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={customSearch}
-                        onChange={e => setCustomSearch(e.target.value)}
-                        placeholder="Ex: Theodort, Jul, Gazo, SDM..."
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                      />
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                      >
-                        Appliquer
-                      </button>
-                    </form>
+                    <div className="relative">
+                      <form onSubmit={handleCustomSearchApply} className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={customSearch}
+                          onChange={e => setCustomSearch(e.target.value)}
+                          onFocus={() => {
+                            if (artistSuggestions.length > 0) setShowArtistDropdown(true);
+                          }}
+                          placeholder="Ex: Theodort, Jul, Gazo, SDM..."
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                        >
+                          Choisir
+                        </button>
+                      </form>
+
+                      {/* Artist Suggestions Dropdown Cards */}
+                      {showArtistDropdown && artistSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-1 z-50 max-h-52 overflow-y-auto space-y-1">
+                          {artistSuggestions.map(art => (
+                            <button
+                              key={art.id}
+                              type="button"
+                              onClick={() => handleSelectArtistCard(art)}
+                              className="w-full flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-800 transition-colors text-left cursor-pointer group"
+                            >
+                              <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shrink-0">
+                                {art.picture ? (
+                                  <img src={art.picture} alt={art.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-500">
+                                    {art.name.charAt(0)}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-white group-hover:text-amber-300 truncate">
+                                  {art.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {art.nb_fan ? `${Math.round(art.nb_fan / 1000)}k fans` : 'Artiste'}
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
+                                Sélectionner
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Quick artist chips in clean horizontal row */}
                     <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pt-1">

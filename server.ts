@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import {
   PLAYLIST_PRESETS,
   searchFreeMusic,
+  searchArtists,
   getGameSongs,
   checkGuessMatch,
   SEED_TRACKS,
@@ -256,14 +257,29 @@ async function startServer() {
     res.json(results);
   });
 
+  // Artist search endpoint with cards & fan count ranking
+  app.get('/api/music/artists', async (req, res) => {
+    const q = (req.query.q as string) || '';
+    if (!q || q.trim().length < 1) {
+      return res.json([]);
+    }
+    const limit = Math.min(Number(req.query.limit) || 8, 20);
+    const results = await searchArtists(q, limit);
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1200');
+    res.json(results);
+  });
+
   app.get('/api/music/playlists', (_req, res) => {
     res.json(PLAYLIST_PRESETS);
   });
 
   app.get('/api/music/import-playlist', async (req, res) => {
-    const url = req.query.url as string;
-    if (!url || !url.startsWith('http')) {
-      return res.status(400).json({ success: false, message: 'URL de playlist invalide' });
+    let url = (req.query.url as string || '').trim();
+    if (!url) {
+      return res.status(400).json({ success: false, message: 'URL de playlist manquante' });
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
     }
     try {
       const result = await importPlaylistFromUrl(url);
@@ -277,7 +293,9 @@ async function startServer() {
   app.get('/api/music/solo-songs', async (req, res) => {
     const playlistId = (req.query.playlist as string) || 'rap-fr';
     const custom = (req.query.artist as string) || (req.query.custom as string);
-    const count = Math.min(Number(req.query.count) || 10, 20);
+    const countParam = Number(req.query.count);
+    // count = 0 or NaN means return entire pool / discography
+    const count = !isNaN(countParam) && countParam > 0 ? Math.min(countParam, 100) : 0;
     const songs = await getGameSongs(playlistId, count, custom);
     res.json({ songs, count: songs.length });
   });

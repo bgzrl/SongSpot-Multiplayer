@@ -215,6 +215,20 @@ export class SnippetAudioPlayer {
     this.playSnippet(targetSec, maxDurationSec);
   }
 
+  seek(targetSec: number) {
+    const safe = Math.max(0, targetSec);
+    this.lastStartSec = safe;
+    if (this.audio) {
+      try {
+        this.audio.currentTime = safe;
+      } catch {}
+    }
+    this.onTimeUpdateCallback?.(
+      safe,
+      this.maxDurationSec > 0 ? safe / this.maxDurationSec : 0
+    );
+  }
+
   stop() {
     this.sessionId++; // Invalidate any pending play promises
 

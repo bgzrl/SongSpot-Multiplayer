@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Song, PlaylistInfo, SoloStats } from '../types/game';
+import { Song, PlaylistInfo, SoloStats, ArtistInfo } from '../types/game';
 import { AudioWaveform } from './AudioWaveform';
 import { SongSearchInput } from './SongSearchInput';
 import { StatsModal } from './StatsModal';
@@ -17,6 +17,13 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Trophy,
+  RotateCcw,
+  Sparkles,
+  Sliders,
+  X,
+  Music,
 } from 'lucide-react';
 
 export interface AttemptItem {
@@ -24,6 +31,14 @@ export interface AttemptItem {
   title?: string;
   artist?: string;
   artwork?: string;
+}
+
+interface RoundResult {
+  song: Song;
+  step: number;
+  isCorrect: boolean;
+  points: number;
+  timeTakenSec?: number;
 }
 
 interface SoloGameProps {
@@ -86,10 +101,24 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   const [selectedPlaylist, setSelectedPlaylist] = useState<string>('rap-fr');
   const [singleArtistTarget, setSingleArtistTarget] = useState<string>('Theodort');
   const [artistInputText, setArtistInputText] = useState<string>('');
+  const [artistCardPicture, setArtistCardPicture] = useState<string>('');
+  const [artistSuggestions, setArtistSuggestions] = useState<ArtistInfo[]>([]);
+  const [isSearchingArtist, setIsSearchingArtist] = useState(false);
+  const [showArtistDropdown, setShowArtistDropdown] = useState(false);
+
+  // Round count & time settings (just like multiplayer)
+  const [totalRoundsOption, setTotalRoundsOption] = useState<number | 'all'>(10);
+  const [roundDurationSec, setRoundDurationSec] = useState<number>(30); // 30, 45, 60 or 0 = unlimited
+  const [roundTimeLeft, setRoundTimeLeft] = useState<number>(30);
+  const [showSettingsPanel, setShowSettingsPanel] = useState<boolean>(false);
+
+  // Custom link playlist
   const [playlistUrlInput, setPlaylistUrlInput] = useState<string>('');
   const [importingUrl, setImportingUrl] = useState<boolean>(false);
   const [importUrlError, setImportUrlError] = useState<string | null>(null);
   const [customPlaylistName, setCustomPlaylistName] = useState<string | null>(null);
+
+  // Game & Round states
   const [songPool, setSongPool] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [currentStep, setCurrentStep] = useState(1);
@@ -100,6 +129,10 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   const [loading, setLoading] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
+
+  // Session score recap (when all rounds end or discography is exhausted)
+  const [sessionResults, setSessionResults] = useState<RoundResult[]>([]);
+  const [isSessionFinished, setIsSessionFinished] = useState(false);
 
   // Draggable theme slider refs & state
   const themesScrollRef = useRef<HTMLDivElement>(null);
@@ -204,10 +237,36 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     playerRef.current?.setVolume(newVol);
   };
 
+  // Debounced artist search query for real-time artist cards suggestions
+  useEffect(() => {
+    const q = artistInputText.trim();
+    if (q.length < 1) {
+      setArtistSuggestions([]);
+      setShowArtistDropdown(false);
+      return;
+    }
+    setIsSearchingArtist(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/music/artists?q=${encodeURIComponent(q)}&limit=8`);
+        if (res.ok) {
+          const list = await res.json();
+          setArtistSuggestions(list);
+          setShowArtistDropdown(list.length > 0);
+        }
+      } catch {
+        setArtistSuggestions([]);
+      } finally {
+        setIsSearchingArtist(false);
+      }
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [artistInputText]);
+
   // Load songs on playlist or artist change & auto-scroll theme into view
   useEffect(() => {
     if (selectedPlaylist !== 'custom-link') {
-      loadSongs(selectedPlaylist, singleArtistTarget);
+      loadSongs(selectedPlaylist, singleArtistTarget, totalRoundsOption);
     }
     const timer = setTimeout(() => {
       checkScrollBounds();
@@ -217,17 +276,25 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       }
     }, 60);
     return () => clearTimeout(timer);
-  }, [selectedPlaylist, singleArtistTarget]);
+  }, [selectedPlaylist, singleArtistTarget, totalRoundsOption]);
 
-  const loadSongs = async (playlistId: string, artistName?: string) => {
+  const loadSongs = async (
+    playlistId: string,
+    artistName?: string,
+    roundsCount: number | 'all' = totalRoundsOption
+  ) => {
     setLoading(true);
     setAttempts([]);
     setCurrentStep(1);
     setGameStatus('playing');
+    setIsSessionFinished(false);
+    setSessionResults([]);
+    setRoundTimeLeft(roundDurationSec);
     playerRef.current?.stop();
 
     try {
-      let url = `/api/music/solo-songs?playlist=${encodeURIComponent(playlistId)}&count=12`;
+      const countParam = roundsCount === 'all' ? 0 : roundsCount;
+      let url = `/api/music/solo-songs?playlist=${encodeURIComponent(playlistId)}&count=${countParam}`;
       if (playlistId === 'single-artist' && artistName) {
         url += `&artist=${encodeURIComponent(artistName)}&custom=${encodeURIComponent(artistName)}`;
       }
@@ -237,14 +304,10 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
         const data = await res.json();
         const songList: Song[] = Array.isArray(data) ? data : data.songs || [];
         if (songList.length > 0) {
-          // Thorough random shuffle
-          const shuffled = [...songList];
-          for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-          }
-          setSongPool(shuffled);
+          setSongPool(songList);
           setCurrentSongIndex(0);
+        } else {
+          setSongPool([]);
         }
       }
     } catch (err) {
@@ -256,10 +319,10 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
   const handleImportPlaylistUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = playlistUrlInput.trim();
-    if (!url.startsWith('http')) {
-      setImportUrlError('Veuillez coller un lien valide (Spotify ou Deezer)');
-      return;
+    let url = playlistUrlInput.trim();
+    if (!url) return;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
     }
     setImportingUrl(true);
     setImportUrlError(null);
@@ -283,6 +346,9 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       setAttempts([]);
       setCurrentStep(1);
       setGameStatus('playing');
+      setIsSessionFinished(false);
+      setSessionResults([]);
+      setRoundTimeLeft(roundDurationSec);
       setSelectedPlaylist('custom-link');
       setCustomPlaylistName(data.name || 'Playlist importée');
       setPlaylistUrlInput('');
@@ -298,82 +364,83 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
   // Initialize Audio Player for current song
   useEffect(() => {
-    if (!currentSong?.previewUrl) return;
-
-    if (prevSongIdRef.current === currentSong.id) return;
-    prevSongIdRef.current = currentSong.id;
-    prevStepRef.current = 1;
+    if (!currentSong) return;
 
     if (playerRef.current) {
       playerRef.current.destroy();
+      playerRef.current = null;
     }
 
-    const audioCtrl = new SnippetAudioPlayer();
-    audioCtrl.setCallbacks(
+    const player = new SnippetAudioPlayer();
+    player.setCallbacks(
       (time: number) => setCurrentTime(time),
       (playing: boolean) => setIsPlaying(playing)
     );
 
-    audioCtrl.setVolume(volume);
-    playerRef.current = audioCtrl;
-
-    const endSec = SNIPPET_STEPS[0];
-    audioCtrl.load(currentSong.previewUrl, 0, endSec);
-
-    // Auto-play the first snippet
-    audioCtrl.playSnippet(0, endSec);
-
-    return () => {
-      audioCtrl.destroy();
-    };
-  }, [currentSong?.id, currentSong?.previewUrl]);
-
-  // Update snippet bounds and auto-play ONLY when step advances
-  useEffect(() => {
-    if (!playerRef.current || !currentSong) return;
-
-    if (gameStatus === 'playing') {
-      const stepIdx = Math.min(currentStep - 1, SNIPPET_STEPS.length - 1);
-      const startSec = stepIdx === 0 ? 0 : SNIPPET_STEPS[stepIdx - 1];
-      const endSec = SNIPPET_STEPS[stepIdx];
-      playerRef.current.setRange(startSec, endSec);
-
-      // Auto-play ONLY if currentStep actually increased, playing ONLY this step's slice
-      if (currentStep > prevStepRef.current && currentStep > 1) {
-        playerRef.current.playSnippet(startSec, endSec);
-      }
-      prevStepRef.current = currentStep;
-    } else {
-      playerRef.current.setRange(0, 30);
-    }
-  }, [currentStep, gameStatus]);
-
-  // Spacebar shortcut to play/pause
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        return;
-      }
-      if (e.code === 'Space') {
-        e.preventDefault();
-        handleTogglePlay();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentStep, gameStatus]);
-
-  const handleTogglePlay = () => {
-    if (!playerRef.current) return;
-    if (gameStatus !== 'playing') {
-      playerRef.current.togglePlay(0, 30);
-      return;
-    }
+    player.setVolume(volume);
     const stepIdx = Math.min(currentStep - 1, SNIPPET_STEPS.length - 1);
     const startSec = stepIdx === 0 ? 0 : SNIPPET_STEPS[stepIdx - 1];
     const endSec = SNIPPET_STEPS[stepIdx];
-    // Toggles playback strictly for the current step's excerpt
-    playerRef.current.togglePlay(startSec, endSec);
+    player.load(currentSong.previewUrl, startSec, endSec);
+    playerRef.current = player;
+    setCurrentTime(startSec);
+    setIsPlaying(false);
+
+    if (gameStatus === 'playing') {
+      const isNewSong = prevSongIdRef.current !== currentSong.id;
+      const isNewStep = prevStepRef.current !== currentStep;
+
+      if (isNewSong || isNewStep) {
+        const timer = setTimeout(() => {
+          player.playSnippet(startSec, endSec);
+        }, 150);
+
+        prevStepRef.current = currentStep;
+        prevSongIdRef.current = currentSong.id;
+        return () => clearTimeout(timer);
+      }
+    }
+
+    return () => {
+      player.destroy();
+    };
+  }, [currentSong?.id, currentStep]);
+
+  // Round countdown timer (if roundDurationSec > 0)
+  useEffect(() => {
+    if (roundDurationSec <= 0 || gameStatus !== 'playing' || isSessionFinished || loading) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRoundTimeLeft(prev => {
+        if (prev <= 1) {
+          // Time expired for this round: automatically skip step
+          handleSkip();
+          return roundDurationSec;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [roundDurationSec, gameStatus, isSessionFinished, loading, currentStep]);
+
+  const handleTogglePlay = () => {
+    if (!playerRef.current || !currentSong) return;
+    if (isPlaying) {
+      playerRef.current.stop();
+      setIsPlaying(false);
+    } else {
+      if (gameStatus !== 'playing') {
+        playerRef.current.playSnippet(0, 30);
+      } else {
+        const stepIdx = Math.min(currentStep - 1, SNIPPET_STEPS.length - 1);
+        const startSec = stepIdx === 0 ? 0 : SNIPPET_STEPS[stepIdx - 1];
+        const endSec = SNIPPET_STEPS[stepIdx];
+        playerRef.current.playSnippet(startSec, endSec);
+      }
+    }
   };
 
   const handlePlaySegment = (startSec: number, endSec: number) => {
@@ -381,99 +448,45 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     playerRef.current.playSnippet(startSec, endSec);
   };
 
-  const handleSeek = (targetSec: number) => {
+  const handleSeek = (sec: number) => {
     if (!playerRef.current) return;
-    const endSec =
-      gameStatus === 'playing'
-        ? SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)]
-        : 30;
-    const safeTarget = Math.max(0, Math.min(targetSec, endSec - 0.1));
-    playerRef.current.playSnippet(safeTarget, endSec);
-  };
-
-  const handleReplayAll = () => {
-    if (!playerRef.current) return;
-    const endSec =
-      gameStatus === 'playing'
-        ? SNIPPET_STEPS[Math.min(currentStep - 1, SNIPPET_STEPS.length - 1)]
-        : 30;
-    playerRef.current.playSnippet(0, endSec);
+    const maxSec = gameStatus !== 'playing' ? 30 : (SNIPPET_STEPS[currentStep - 1] || 1.0);
+    const targetSec = Math.min(maxSec, Math.max(0, sec));
+    if (isPlaying) {
+      playerRef.current.seekAndPlay(targetSec, maxSec);
+    } else {
+      playerRef.current.seek(targetSec);
+    }
+    setCurrentTime(targetSec);
   };
 
   const handleGuess = (song: Song, queryText: string) => {
     if (gameStatus !== 'playing' || !currentSong) return;
 
-    // 1. Direct ID match (unless raw guess)
-    const isIdMatch = Boolean(
-      song.id &&
-      currentSong.id &&
-      song.id !== 'raw_guess' &&
-      String(song.id) === String(currentSong.id)
-    );
+    const normTargetTitle = currentSong.title.toLowerCase().trim();
+    const coreTargetTitle = extractCoreTitle(currentSong.title);
+    const normGuessedTitle = song.title.toLowerCase().trim();
+    const coreGuessedTitle = extractCoreTitle(song.title);
+    const normGuessedArtist = song.artist.toLowerCase().trim();
+    const normTargetArtist = currentSong.artist.toLowerCase().trim();
 
-    const targetCore = extractCoreTitle(currentSong.title);
+    const isIdMatch = song.id === currentSong.id;
+    const isTitleMatch =
+      (coreGuessedTitle && coreGuessedTitle === coreTargetTitle) ||
+      (normGuessedTitle && normGuessedTitle === normTargetTitle);
 
-    // 2. Explicit song title selected by the user in suggestion dropdown
-    let isTitleMatch = false;
-    if (song.title && song.id !== 'raw_guess') {
-      const guessCore = extractCoreTitle(song.title);
-      if (guessCore && guessCore === targetCore) {
-        isTitleMatch = true;
-      } else if (
-        guessCore &&
-        targetCore &&
-        guessCore.length >= 4 &&
-        targetCore.length >= 4 &&
-        (guessCore.startsWith(targetCore) || targetCore.startsWith(guessCore))
-      ) {
-        isTitleMatch = true;
-      }
-    }
-
-    // 3. Raw query match
     let isRawMatch = false;
-    const rawCore = extractCoreTitle(queryText || song.title);
-    if (rawCore && rawCore === targetCore) {
-      isRawMatch = true;
-    } else {
-      // Strip artist tokens from raw query
-      const artistsInTarget = (currentSong.artist || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .split(/[,&/]|feat\.?|ft\.?|featuring|with/)
-        .map(a => a.replace(/[^a-z0-9]/g, '').trim())
-        .filter(a => a.length >= 2);
-
-      let stripped = rawCore;
-      for (const art of artistsInTarget) {
-        if (art.length >= 2 && stripped.includes(art)) {
-          stripped = stripped.replace(art, '');
-        }
-      }
-      if (stripped && stripped === targetCore) {
+    if (queryText && queryText.trim().length >= 2) {
+      const cleanRaw = extractCoreTitle(queryText) || queryText.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanRaw && (cleanRaw === coreTargetTitle || cleanRaw === normTargetTitle.replace(/[^a-z0-9]/g, ''))) {
         isRawMatch = true;
-      } else {
-        let textStripped = (queryText || '')
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '');
-        for (const art of artistsInTarget) {
-          if (art.length >= 2 && textStripped.includes(art)) {
-            textStripped = textStripped.replace(art, ' ');
-          }
-        }
-        const textStrippedCore = extractCoreTitle(textStripped);
-        if (textStrippedCore && textStrippedCore === targetCore) {
-          isRawMatch = true;
-        }
       }
     }
 
     const isMatch = isIdMatch || isTitleMatch || isRawMatch;
 
     if (isMatch) {
-      // Won!
+      // Won this round!
       soundFX.playCorrect();
       confetti({
         particleCount: 100,
@@ -492,6 +505,26 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
         },
       ]);
 
+      const basePointsMap: Record<number, number> = {
+        1: 1000, 2: 800, 3: 600, 4: 450, 5: 300, 6: 150
+      };
+      let earnedPoints = basePointsMap[currentStep] || 150;
+      if (roundDurationSec > 0) {
+        const timeBonus = Math.round((roundTimeLeft / roundDurationSec) * 200);
+        earnedPoints += timeBonus;
+      }
+
+      setSessionResults(prev => [
+        ...prev,
+        {
+          song: currentSong,
+          step: currentStep,
+          isCorrect: true,
+          points: earnedPoints,
+          timeTakenSec: roundDurationSec > 0 ? (roundDurationSec - roundTimeLeft) : undefined,
+        },
+      ]);
+
       setGameStatus('won');
       setStats(prev => ({
         ...prev,
@@ -499,13 +532,13 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
         gamesWon: prev.gamesWon + 1,
         currentStreak: prev.currentStreak + 1,
         bestStreak: Math.max(prev.bestStreak, prev.currentStreak + 1),
+        totalScore: (prev.totalScore || 0) + earnedPoints,
         guessDistribution: {
           ...prev.guessDistribution,
           [currentStep]: (prev.guessDistribution[currentStep] || 0) + 1,
         },
       }));
 
-      // Play full audio
       playerRef.current?.playSnippet(0, 30);
     } else {
       // Wrong guess
@@ -520,8 +553,18 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       ]);
 
       if (currentStep >= SNIPPET_STEPS.length) {
-        // Lost!
+        // Lost this round
         setGameStatus('lost');
+        setSessionResults(prev => [
+          ...prev,
+          {
+            song: currentSong,
+            step: currentStep,
+            isCorrect: false,
+            points: 0,
+            timeTakenSec: roundDurationSec > 0 ? (roundDurationSec - roundTimeLeft) : undefined,
+          },
+        ]);
         setStats(prev => ({
           ...prev,
           gamesPlayed: prev.gamesPlayed + 1,
@@ -529,24 +572,30 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
         }));
         playerRef.current?.playSnippet(0, 30);
       } else {
-        // Advance to next step
         setCurrentStep(prev => prev + 1);
       }
     }
   };
 
   const handleSkip = () => {
-    if (gameStatus !== 'playing') return;
+    if (gameStatus !== 'playing' || !currentSong) return;
 
-    // Explicitly stop previous snippet before unlocking next step so playback resets to 0s
     playerRef.current?.stop();
-
     soundFX.playSkip();
     setAttempts(prev => [...prev, { type: 'skipped' }]);
 
     if (currentStep >= SNIPPET_STEPS.length) {
-      // Forfeited on last step
       setGameStatus('lost');
+      setSessionResults(prev => [
+        ...prev,
+        {
+          song: currentSong,
+          step: currentStep,
+          isCorrect: false,
+          points: 0,
+          timeTakenSec: roundDurationSec > 0 ? (roundDurationSec - roundTimeLeft) : undefined,
+        },
+      ]);
       setStats(prev => ({
         ...prev,
         gamesPlayed: prev.gamesPlayed + 1,
@@ -554,37 +603,45 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       }));
       playerRef.current?.playSnippet(0, 30);
     } else {
-      // Unlock next snippet
       setCurrentStep(prev => prev + 1);
     }
   };
+
+  const effectiveTotalRounds = totalRoundsOption === 'all'
+    ? songPool.length
+    : Math.min(totalRoundsOption, songPool.length);
+
+  const isLastRound = currentSongIndex + 1 >= effectiveTotalRounds || currentSongIndex + 1 >= songPool.length;
 
   const handleNextSong = () => {
     playerRef.current?.stop();
     prevStepRef.current = 1;
     setAttempts([]);
     setCurrentStep(1);
-    setGameStatus('playing');
 
-    if (currentSongIndex + 1 < songPool.length) {
-      setCurrentSongIndex(prev => prev + 1);
+    const nextIndex = currentSongIndex + 1;
+    if (nextIndex < effectiveTotalRounds && nextIndex < songPool.length) {
+      setCurrentSongIndex(nextIndex);
+      setGameStatus('playing');
+      setRoundTimeLeft(roundDurationSec);
     } else {
-      loadSongs(selectedPlaylist, singleArtistTarget);
+      // Discography exhausted or rounds finished: cut and show score screen!
+      setIsSessionFinished(true);
+      soundFX.playVictory();
+      confetti({ particleCount: 140, spread: 80, origin: { y: 0.5 } });
     }
   };
 
-  const handleSelectArtist = (artistName: string) => {
-    setSingleArtistTarget(artistName);
-    setSelectedPlaylist('single-artist');
-  };
-
-  const handleCustomArtistSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!artistInputText.trim()) return;
-    const clean = artistInputText.trim();
-    setSingleArtistTarget(clean);
+  const handleSelectArtistCard = (artist: ArtistInfo) => {
+    setSingleArtistTarget(artist.name);
+    setArtistCardPicture(artist.picture);
     setSelectedPlaylist('single-artist');
     setArtistInputText('');
+    setShowArtistDropdown(false);
+  };
+
+  const handleRestartSession = () => {
+    loadSongs(selectedPlaylist, singleArtistTarget, totalRoundsOption);
   };
 
   const generateShareText = () => {
@@ -598,10 +655,6 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       return '⬛';
     });
 
-    while (emojiMap.length < SNIPPET_STEPS.length) {
-      emojiMap.push('⬜');
-    }
-
     const scoreString = gameStatus === 'won' ? `${currentStep}/${SNIPPET_STEPS.length}` : 'X/6';
     return `${title}\nScore: ${scoreString}\n${emojiMap.join('')}`;
   };
@@ -612,6 +665,13 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 2500);
   };
+
+  // Final session totals
+  const totalSessionPoints = sessionResults.reduce((acc, r) => acc + r.points, 0);
+  const correctSessionCount = sessionResults.filter(r => r.isCorrect).length;
+  const accuracyPercent = sessionResults.length > 0
+    ? Math.round((correctSessionCount / sessionResults.length) * 100)
+    : 0;
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-4 animate-in fade-in duration-300">
@@ -628,11 +688,46 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Round info indicator */}
+            {songPool.length > 0 && !isSessionFinished && (
+              <span className="bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800 text-slate-300 font-semibold text-xs tabular-nums">
+                Manche {currentSongIndex + 1}/{effectiveTotalRounds}
+              </span>
+            )}
+
+            {/* Live Round Timer badge if active */}
+            {roundDurationSec > 0 && gameStatus === 'playing' && !isSessionFinished && (
+              <span className={`px-2.5 py-1 rounded-xl border text-xs font-bold tabular-nums flex items-center gap-1 ${
+                roundTimeLeft <= 10
+                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 animate-pulse'
+                  : 'bg-slate-950 text-emerald-400 border-slate-800'
+              }`}>
+                <Clock className="w-3.5 h-3.5" />
+                {roundTimeLeft}s
+              </span>
+            )}
+
+            {/* Streak */}
             <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800 text-slate-300 text-xs">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>Série : <strong className="text-orange-400 tabular-nums">{stats.currentStreak}</strong></span>
             </div>
 
+            {/* Settings toggle */}
+            <button
+              onClick={() => setShowSettingsPanel(prev => !prev)}
+              type="button"
+              className={`flex items-center justify-center w-7 h-7 rounded-xl border transition-colors cursor-pointer ${
+                showSettingsPanel
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+              title="Paramètres de manche & temps"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Stats modal button */}
             <button
               onClick={() => setShowStatsModal(true)}
               type="button"
@@ -643,6 +738,107 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
             </button>
           </div>
         </div>
+
+        {/* Collapsible Game Settings Panel: Répétition des paramètres du mode multi */}
+        {showSettingsPanel && (
+          <div className="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3 space-y-3 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                ⚙️ Configuration de la partie Solo
+              </span>
+              <button
+                onClick={() => setShowSettingsPanel(false)}
+                type="button"
+                className="text-slate-500 hover:text-white text-xs cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {/* Number of rounds */}
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1.5">
+                  Nombre de manches
+                </label>
+                <div className="grid grid-cols-5 gap-1">
+                  {[5, 10, 15, 20].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => {
+                        setTotalRoundsOption(n);
+                        loadSongs(selectedPlaylist, singleArtistTarget, n);
+                      }}
+                      className={`py-1.5 rounded-lg font-bold tabular-nums text-center transition-all cursor-pointer border ${
+                        totalRoundsOption === n
+                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-sm'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTotalRoundsOption('all');
+                      loadSongs(selectedPlaylist, singleArtistTarget, 'all');
+                    }}
+                    className={`py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer border ${
+                      totalRoundsOption === 'all'
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-sm'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                    }`}
+                    title="Toute la discographie disponible"
+                  >
+                    Tout
+                  </button>
+                </div>
+              </div>
+
+              {/* Time per round */}
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1.5 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-slate-400" /> Temps par manche
+                </label>
+                <div className="grid grid-cols-4 gap-1">
+                  {[30, 45, 60].map(sec => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => {
+                        setRoundDurationSec(sec);
+                        setRoundTimeLeft(sec);
+                      }}
+                      className={`py-1.5 rounded-lg font-bold tabular-nums text-center transition-all cursor-pointer border ${
+                        roundDurationSec === sec
+                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-sm'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                      }`}
+                    >
+                      {sec}s
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRoundDurationSec(0);
+                      setRoundTimeLeft(0);
+                    }}
+                    className={`py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer border ${
+                      roundDurationSec === 0
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold shadow-sm'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    ∞
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Draggable and scrollable full-width themes slider */}
         <div className="relative flex items-center group">
@@ -731,10 +927,10 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
           <div className="pt-2.5 border-t border-slate-800 space-y-2">
             <form onSubmit={handleImportPlaylistUrl} className="flex gap-1.5">
               <input
-                type="url"
+                type="text"
                 value={playlistUrlInput}
                 onChange={e => setPlaylistUrlInput(e.target.value)}
-                placeholder="Coller un lien de playlist Spotify ou Deezer..."
+                placeholder="Coller un lien Spotify ou Deezer (ex: open.spotify.com/playlist/...)"
                 className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400"
               />
               <button
@@ -756,41 +952,96 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
           </div>
         )}
 
-        {/* Dedicated controls for 100% Un Seul Artiste */}
+        {/* Dedicated controls for 100% Un Seul Artiste with Real-Time Suggestion Cards */}
         {selectedPlaylist === 'single-artist' && (
-          <div className="pt-2.5 border-t border-slate-800 space-y-2">
+          <div className="pt-2.5 border-t border-slate-800 space-y-2 relative">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-              {/* Custom artist input */}
-              <form onSubmit={handleCustomArtistSubmit} className="flex items-center gap-1.5 flex-1 max-w-sm">
-                <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 text-amber-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={artistInputText}
-                    onChange={(e) => setArtistInputText(e.target.value)}
-                    placeholder="Rechercher un artiste (ex: Theodort)..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0"
-                >
-                  Choisir
-                </button>
-              </form>
+              {/* Custom artist input with autocompletion */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-3.5 h-3.5 text-amber-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={artistInputText}
+                  onChange={(e) => setArtistInputText(e.target.value)}
+                  onFocus={() => {
+                    if (artistSuggestions.length > 0) setShowArtistDropdown(true);
+                  }}
+                  placeholder="Tapez le nom d'un artiste (ex: Theodort, Jul...)"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
 
-              {/* Active artist badge */}
-              <div className="flex items-center gap-1.5 text-xs">
+                {/* Autocomplete Suggestions Cards Dropdown */}
+                {showArtistDropdown && artistSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-1.5 z-50 max-h-64 overflow-y-auto space-y-1">
+                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Suggestions d'artistes
+                    </div>
+                    {artistSuggestions.map(art => (
+                      <button
+                        key={art.id}
+                        type="button"
+                        onClick={() => handleSelectArtistCard(art)}
+                        className="w-full flex items-center gap-2.5 p-2 rounded-xl hover:bg-slate-800/80 transition-colors text-left cursor-pointer group"
+                      >
+                        {/* Square Artist Photo Card */}
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shrink-0 shadow-sm">
+                          {art.picture ? (
+                            <img
+                              src={art.picture}
+                              alt={art.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs font-bold">
+                              {art.name.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors truncate">
+                            {art.name}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {art.nb_fan && art.nb_fan > 0
+                              ? art.nb_fan > 1000000
+                                ? `${(art.nb_fan / 1000000).toFixed(1)}M fans`
+                                : `${Math.round(art.nb_fan / 1000)}k fans`
+                              : 'Artiste vérifié'}
+                          </div>
+                        </div>
+
+                        <span className="text-[10px] font-bold text-amber-400/80 bg-amber-400/10 px-2 py-1 rounded-md shrink-0">
+                          Choisir
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Active artist badge with photo */}
+              <div className="flex items-center gap-2 text-xs">
                 <span className="text-slate-400">En écoute :</span>
-                <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <Crown className="w-3 h-3 fill-current" />
-                  {singleArtistTarget}
+                <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold px-2 py-1 rounded-xl flex items-center gap-1.5 shadow-sm">
+                  {artistCardPicture ? (
+                    <img
+                      src={artistCardPicture}
+                      alt={singleArtistTarget}
+                      className="w-4 h-4 rounded-md object-cover border border-amber-400/40"
+                    />
+                  ) : (
+                    <Crown className="w-3.5 h-3.5 fill-current" />
+                  )}
+                  <span>{singleArtistTarget}</span>
+                  <span className="text-[10px] text-amber-200/70 font-normal">
+                    ({songPool.length} titres)
+                  </span>
                 </span>
               </div>
             </div>
 
-            {/* Horizontal scrollable quick artist chips (single clean row) */}
+            {/* Horizontal scrollable quick artist chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
                 Populaires :
@@ -800,7 +1051,11 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                 return (
                   <button
                     key={art}
-                    onClick={() => handleSelectArtist(art)}
+                    onClick={() => {
+                      setSingleArtistTarget(art);
+                      setArtistCardPicture('');
+                      setSelectedPlaylist('single-artist');
+                    }}
                     type="button"
                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                       isActive
@@ -820,11 +1075,133 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       {loading ? (
         <div className="py-24 text-center text-slate-400 bg-slate-900/60 border border-slate-800 rounded-3xl">
           <div className="inline-block w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="font-semibold text-sm">Chargement des morceaux...</p>
+          <p className="font-semibold text-sm">Chargement de la discographie...</p>
+        </div>
+      ) : isSessionFinished ? (
+        /* FINAL SCORE SCREEN: When discography runs out or configured rounds finish! */
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-300 space-y-6">
+          {/* Header Trophy Banner */}
+          <div className="text-center space-y-2 pb-5 border-b border-slate-800">
+            <div className="w-16 h-16 rounded-3xl bg-amber-400/20 text-amber-400 border border-amber-400/30 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+              <Trophy className="w-8 h-8 stroke-[2.2]" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              {selectedPlaylist === 'single-artist'
+                ? `Discographie terminée !`
+                : `Partie Terminée !`}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400">
+              {selectedPlaylist === 'single-artist'
+                ? `Vous avez écouté tous les titres disponibles de ${singleArtistTarget} !`
+                : `Toutes les manches prévues ont été jouées.`}
+            </p>
+          </div>
+
+          {/* Score Stats Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-center">
+              <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                Score Total
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-emerald-400 tabular-nums">
+                {totalSessionPoints} pts
+              </span>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-center">
+              <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                Trouvés
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-white tabular-nums">
+                {correctSessionCount}/{sessionResults.length}
+              </span>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-center">
+              <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                Précision
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-amber-400 tabular-nums">
+                {accuracyPercent}%
+              </span>
+            </div>
+          </div>
+
+          {/* Songs Played Summary List */}
+          <div className="space-y-2">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+              Récapitulatif des morceaux ({sessionResults.length})
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+              {sessionResults.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                    item.isCorrect
+                      ? 'bg-emerald-950/30 border-emerald-500/30'
+                      : 'bg-rose-950/20 border-rose-500/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={item.song.artwork}
+                      alt={item.song.title}
+                      className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-700"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white truncate">
+                        {item.song.title}
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate">
+                        {item.song.artist}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    {item.isCorrect ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400">
+                        <Check className="w-3.5 h-3.5" />
+                        Étape {item.step} (+{item.points} pts)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-400">
+                        <X className="w-3.5 h-3.5" />
+                        Non trouvé
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-3 border-t border-slate-800">
+            <button
+              onClick={handleRestartSession}
+              type="button"
+              className="w-full sm:flex-1 py-3 px-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Rejouer avec cet artiste</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsSessionFinished(false);
+                setSelectedPlaylist('rap-fr');
+              }}
+              type="button"
+              className="w-full sm:w-auto py-3 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl border border-slate-700 transition-all cursor-pointer"
+            >
+              Changer de mode
+            </button>
+          </div>
         </div>
       ) : currentSong ? (
         <>
-          {/* THE AUDIO PLAYER */}
+          {/* THE AUDIO PLAYER WITH DRAGGABLE SLIDING SCRUBBER */}
           <AudioWaveform
             steps={SNIPPET_STEPS}
             currentStep={currentStep}
@@ -851,7 +1228,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
               />
             </div>
           ) : (
-            /* GAME FINISHED: REVEAL CARD */
+            /* ROUND FINISHED: REVEAL CARD */
             <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-300">
               {/* Header Status & Next Song Button */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-800">
@@ -887,14 +1264,23 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
                   )}
                 </div>
 
-                {/* Next Song Button */}
+                {/* Next Song or Final Results Button */}
                 <button
                   onClick={handleNextSong}
                   type="button"
                   className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <span>Chanson suivante</span>
-                  <span>⏩</span>
+                  {isLastRound ? (
+                    <>
+                      <span>Voir le score final</span>
+                      <Trophy className="w-4 h-4" />
+                    </>
+                  ) : (
+                    <>
+                      <span>Chanson suivante</span>
+                      <span>⏩</span>
+                    </>
+                  )}
                 </button>
               </div>
 

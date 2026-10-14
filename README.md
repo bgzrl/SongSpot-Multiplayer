@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎵 SongSpot Multiplayer
+<img src="/public/logo.svg" alt="SongSpot Logo" width="420" />
 
 ### *Le Blind Test musical nouvelle génération en solo & multijoueur temps réel*
 
@@ -41,138 +41,68 @@ Chaque manche propose un morceau mystère découpé en tranches progressives :
 
 ## 🚀 Fonctionnalités Clés
 
+### 👑 Mode 100% Un Seul Artiste (Discographie Complète)
+- **Toute la discographie de l'artiste :** Récupération automatique de la discographie authentique (top titres, albums studio, featurings) avec dédoublonnage strict des titres (0 doublon garanti).
+- **Fin de discographie & Score :** Dès qu'il n'y a plus de morceaux à jouer, la partie coupe immédiatement et affiche le bilan récapitulatif complet avec le score final, le taux de réussite et le détail titre par titre.
+- **Cartes de suggestion d'artistes en direct :** Pendant la saisie du nom d'un artiste, autocomplétion instantanée via l'API musicale affichant une carte avec la photo carrée de l'artiste, son nom et son nombre de fans/abonnés.
+- **Boutons d'accès rapide :** Suggestions populaires en un clic (Theodort, Jul, Gazo, Ninho, SDM, Tiakola, Werenoi, PLK, etc.).
+
+### ⚙️ Paramètres Avancés (Solo & Multijoueur)
+- **Nombre de manches modulable :** Choix entre `5`, `10`, `15`, `20` manches, ou `Tout` pour parcourir l'intégralité de la discographie de l'artiste sélectionné.
+- **Temps par manche :** Choix entre `30s`, `45s`, `60s` ou `Illimité` (avec compte à rebours visuel et bonus de rapidité).
+
+### 🎛️ Barre Temporelle Interactive & Glissable (Scrubber Draggable)
+- **Glisser pour choisir :** Cliquez et faites glisser le curseur le long de la barre de progression pour naviguer et sélectionner librement l'instant d'écoute souhaité.
+- **Poignée de scrubbing tactile :** Compatible souris et écrans tactiles (`pointer events` avec capture), affichage en temps réel du timestamp sélectionné.
+
+### 🔗 Importation de Playlists (Spotify & Deezer)
+- **Compatibilité totale :** Collez directement l'URL d'une playlist, d'un album ou d'un artiste Spotify ou Deezer (avec ou sans `https://`).
+- **Résolution automatique des extraits :** Conversion et vérification des 30 secondes d'extrait pour chaque morceau importé.
+
 ### 🕹️ Multijoueur Temps Réel
-- **Salons personnalisés :** Création instantanée de salons privés avec code d'accès à 6 caractères ou lien d'invitation direct.
-- **Synchronisation en direct (WebSockets) :** Horloge de manche synchronisée pour tous les joueurs, scores instantanés, animations d'essais en direct.
-- **Interactions & Ambiance :** Chat textuel en direct, réactions émojis flottantes (`🔥`, `🤯`, `😂`, `👏`, `💀`, `⚡`) et sons interactifs.
-- **Podium final :** Classement dynamique avec célébration, pluie de confettis (`canvas-confetti`) et détail des points par manche.
+- **Salons privés :** Création instantanée avec code d'accès à 6 caractères ou lien d'invitation direct.
+- **Synchronisation en direct (WebSockets) :** Horloge de manche synchronisée pour tous les joueurs, scores instantanés, validation des états prêts.
+- **Interactions & Ambiance :** Chat textuel en direct, réactions émojis flottantes (`🔥`, `🤯`, `😂`, `👏`, `💀`, `⚡`) et bruitages sonores.
+- **Podium final :** Classement dynamique avec pluie de confettis (`canvas-confetti`) et podium interactif.
 
-### 🎧 Moteur Audio Haute Précision
-- **Zéro conflit audio :** Architecture autoritaire garantissant qu'un seul son joue à la fois dans le navigateur.
-- **Système de tranches isolées :** À l'étape 2, vous écoutez uniquement l'extrait de `1s` à `2s` sans être obligé de réécouter depuis le début.
-- **Réécoute interactive des étapes :** Cliquez sur n'importe quel segment débloqué (`0s-1s`, `1s-2s`, etc.) sur la barre pour le réécouter individuellement.
-- **Bouton « Tout écouter » :** Possibilité de réécouter d'un clic tout l'extrait cumulé débloqué (`0s` à `Xs`).
-- **Barre segmentée millimétrée :** Alignement fidèle des repères de temps au-dessus des séparateurs de segments.
-- **Contrôle du volume persistant :** Curseur de volume avec sauvegarde automatique dans `localStorage`.
-
-### 🔍 Moteur de Recherche Instantané & Intelligent
-- **Autocomplétion ultra-rapide :** Cache client réactif et système anti-blocage (fallback serveur résilient en cas de latence réseau).
+### 🔍 Moteur de Recherche Instantané & Bouton Dynamique
+- **Bouton Morphing « Passer / Valider » :** Lorsque le champ est vide, le bouton affiche `Passer` ; dès qu'un titre est tapé, il se transforme dynamiquement en `Valider`.
 - **Tolérance aux fautes (Fuzzy Search) :** Détection automatique des fautes de frappe, accents, majuscules, featurings et alias d'artistes.
-- **Validation souple :** Les variantes (titres avec parenthèses, versions remasterisées, featurings) sont reconnues automatiquement pour éviter les frustrations.
-
-### 📻 Playlists Thématiques & Modes Spéciaux
-- 🔥 **Top Tendances France & TikTok :** Les plus gros hits récents.
-- ⚡ **Rap FR & Bangers Gen Z :** Gazo, SDM, Tiakola, Werenoi, PLK, Jul, Ninho, Theodort...
-- 👑 **Mode 100% Un Seul Artiste :** Tapez le nom de votre artiste préféré pour générer une partie dédiée sur sa discographie complète.
-- 🌍 **Hits Internationaux :** The Weeknd, Billie Eilish, Bruno Mars, Dua Lipa, Kendrick Lamar...
-- 🇫🇷 **Variété Française & Classiques :** Stromae, Angèle, Céline Dion, Indochine, Orelsan...
-- 📻 **Nostalgie 2000s & 2010s :** Rihanna, Britney, Eminem, Shakira, Coldplay...
-- 🎸 **Classiques Rock & Pop (80s/90s) & Electro / Dance.**
-
-### 📊 Statistiques & Partage
-- **Tableau de bord statistique :** Taux de victoire, série actuelle (streak), meilleure série, répartition du nombre d'essais.
-- **Grille de partage Heardle :** Copiez votre résultat sous forme de carrés émojis (🟩 🟥 ⬛) pour défier vos amis sur Discord ou Twitter/X.
 
 ---
 
-## 🎮 Modes de Jeu
+## 🎨 Thèmes Musicaux Intégrés
 
-| Mode | Description | Idéal pour... |
-| :--- | :--- | :--- |
-| **Solo Quotidien / Infini** | Jouez en solo, enchaînez les morceaux ou rejouez à volonté sur la playlist de votre choix. | S'entraîner et tester sa culture musicale. |
-| **Multijoueur Privé** | Créez un salon de 2 à 10+ joueurs, configurez le nombre de manches (3 à 15) et le temps par manche (20s à 60s). | Soirées entre amis, streams et pauses café. |
+| Thème | Description | Icône |
+| :--- | :--- | :---: |
+| **Rap FR** | Gazo, SDM, Tiakola, Werenoi, PLK, Jul, Theodort, Ninho, Yamê... | ⚡ |
+| **Rap Mondial** | Drake, Travis Scott, Kendrick Lamar, Eminem, 21 Savage, Metro Boomin... | 🌐 |
+| **R&B** | SZA, The Weeknd, Brent Faiyaz, Frank Ocean, Beyoncé, Chris Brown, Usher... | 💜 |
+| **Hits Français** | Stromae, Angèle, Orelsan, Pierre Garnier, Santa, Clara Luciani, Indochine... | 🇫🇷 |
+| **Hits Mondiaux** | Taylor Swift, Bruno Mars, Dua Lipa, Billie Eilish, Sabrina Carpenter, Ed Sheeran... | 🌍 |
+| **100% Un Seul Artiste** | Discographie complète dédiée à l'artiste de votre choix | 👑 |
+| **Lien Personnalisé** | Import d'URL Spotify ou Deezer | 🔗 |
 
 ---
 
 ## 🛠️ Architecture & Stack Technique
 
-```
-songspot/
-├── server.ts                   # Serveur HTTP Express + Serveur WebSocket (ws)
-├── server/
-│   └── musicService.ts         # Service de musique, API iTunes/Deezer, proxy audio & fuzzy match
-├── src/
-│   ├── components/
-│   │   ├── AudioWaveform.tsx       # Barre audio segmentée interactive & scrubber
-│   │   ├── ChatAndReactions.tsx    # Chat en direct & bulles d'émojis flottantes
-│   │   ├── GamePodium.tsx          # Écran de fin de partie multijoueur & podium
-│   │   ├── GameRound.tsx           # Manche active multijoueur
-│   │   ├── HeardleAttemptsList.tsx # Historique des 6 essais avec pastilles d'état
-│   │   ├── MultiplayerLobby.tsx    # Salle d'attente multijoueur avec code de salon
-│   │   ├── Navbar.tsx              # Barre de navigation & sélecteur de thème
-│   │   ├── RoundResultsModal.tsx   # Modal de fin de manche & écoute complète (30s)
-│   │   ├── SoloGame.tsx            # Expérience de jeu solo
-│   │   ├── SongSearchInput.tsx     # Barre de recherche avec autocomplétion & cache
-│   │   └── StatsModal.tsx          # Modal de statistiques & export de score
-│   ├── services/
-│   │   ├── audioController.ts      # Lecteur HTML5 haute précision (gestion des sessions)
-│   │   └── soundEffects.ts         # Moteur de synthétiseur Web Audio (bip, succès, erreur)
-│   ├── types/
-│   │   └── game.ts                 # Définitions TypeScript complètes (Room, Song, Player...)
-│   ├── App.tsx                     # Routeur d'écrans & gestion des vues
-│   └── index.css                   # Styles globaux Tailwind CSS v4
-├── package.json
-└── tsconfig.json
-```
+- **Frontend :** React 19, TypeScript, Tailwind CSS v4, Lucide React, Canvas Confetti.
+- **Backend :** Express, Node.js, WebSockets (`ws`), Tsx.
+- **APIs Musicales :** Intégration Deezer & Spotify avec proxy audio pour contourner les restrictions CORS.
+- **Assets :** Favicon vectoriel SVG dédié (`/favicon.svg`) et logo haute résolution (`/public/logo.svg`).
 
 ---
 
-## 🚀 Installation & Démarrage
+## 💻 Installation & Démarrage
 
-### Prérequis
-- **Node.js** (v18 ou supérieur recommandé)
-- **npm**, **pnpm** ou **yarn**
-
-### 1. Cloner le dépôt
 ```bash
-git clone https://github.com/votre-compte/songspot-multiplayer.git
-cd songspot-multiplayer
-```
-
-### 2. Installer les dépendances
-```bash
+# Installation des dépendances
 npm install
-```
 
-### 3. Lancer en mode développement
-```bash
+# Lancement en mode développement (Serveur Express + Vite sur port 3000)
 npm run dev
-```
 
-L'application démarre sur [http://localhost:3000](http://localhost:3000) :
-- Le serveur Express et les WebSockets sont lancés sur le port 3000.
-- Vite sert le frontend avec rechargement à chaud.
-
-### 4. Compiler pour la production
-```bash
+# Construction pour la production
 npm run build
-npm start
 ```
-
----
-
-## ⌨️ Contrôles & Raccourcis
-
-| Raccourci | Action |
-| :--- | :--- |
-| <kbd>Espace</kbd> | Lancer / Mettre en pause l'extrait audio en cours |
-| <kbd>Entrée</kbd> | Valider la suggestion sélectionnée dans la barre de recherche |
-| <kbd>Échap</kbd> | Fermer les modales de statistiques ou de résultats |
-| **Clic sur tranche** | Écouter spécifiquement le segment correspondant (`0s-1s`, `1s-2s`, etc.) |
-
----
-
-## 🤝 Contribution
-
-Les contributions, signalements de bugs et suggestions de fonctionnalités sont les bienvenus !
-1. Forkez le projet
-2. Créez votre branche (`git checkout -b feature/nouvelle-fonctionnalite`)
-3. Committez vos modifications (`git commit -m 'feat: ajout d'une nouvelle fonctionnalité'`)
-4. Poussez sur votre branche (`git push origin feature/nouvelle-fonctionnalite`)
-5. Ouvrez une **Pull Request**
-
----
-
-<div align="center">
-  <sub>Fait avec ❤️ pour les passionnés de musique. Bon jeu sur SongSpot ! 🎶</sub>
-</div>
