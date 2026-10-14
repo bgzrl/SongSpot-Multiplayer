@@ -2,76 +2,58 @@ import { Song, PlaylistInfo } from '../src/types/game.js';
 
 export const PLAYLIST_PRESETS: PlaylistInfo[] = [
   {
-    id: 'trending-gen-z',
-    name: '🔥 Top Tendances France & TikTok',
-    description: 'Les plus gros hits officiels du Top 100 France (Apple Charts, TikTok & Deezer)',
-    icon: '🔥',
-    badge: 'N°1 France',
-    gradient: 'from-rose-500 via-amber-500 to-violet-600',
-    songsCount: 40,
-  },
-  {
-    id: 'rap-fr-gen-z',
-    name: '⚡ Rap FR & Bangers Gen Z',
+    id: 'rap-fr',
+    name: '⚡ Rap FR',
     description: 'Gazo, SDM, Tiakola, Werenoi, PLK, Jul, Theodort, Ninho, Yamê...',
     icon: '⚡',
-    badge: 'Top Rap FR',
+    badge: 'Rap FR',
     gradient: 'from-emerald-500 via-teal-500 to-cyan-600',
-    songsCount: 40,
+    songsCount: 50,
+  },
+  {
+    id: 'rap-mondial',
+    name: '🌐 Rap Mondial',
+    description: 'Drake, Travis Scott, Kendrick Lamar, Eminem, 21 Savage, Metro Boomin...',
+    icon: '🌐',
+    badge: 'Rap Mondial',
+    gradient: 'from-red-600 via-orange-500 to-amber-600',
+    songsCount: 50,
+  },
+  {
+    id: 'rnb',
+    name: '💜 R&B',
+    description: 'SZA, The Weeknd, Brent Faiyaz, Frank Ocean, Beyoncé, Chris Brown, Usher...',
+    icon: '💜',
+    badge: 'R&B',
+    gradient: 'from-purple-600 via-pink-500 to-indigo-600',
+    songsCount: 50,
+  },
+  {
+    id: 'french-hits',
+    name: '🇫🇷 Hits Français',
+    description: 'Stromae, Angèle, Orelsan, Pierre Garnier, Santa, Clara Luciani, Indochine...',
+    icon: '🇫🇷',
+    badge: 'Hits FR',
+    gradient: 'from-blue-600 via-sky-500 to-cyan-500',
+    songsCount: 50,
+  },
+  {
+    id: 'global-hits',
+    name: '🌍 Hits Mondiaux',
+    description: 'Taylor Swift, Bruno Mars, Dua Lipa, Billie Eilish, Sabrina Carpenter, Ed Sheeran...',
+    icon: '🌍',
+    badge: 'Hits Mondiaux',
+    gradient: 'from-amber-500 via-rose-500 to-violet-600',
+    songsCount: 50,
   },
   {
     id: 'single-artist',
     name: '👑 100% Un Seul Artiste',
-    description: 'Choisissez votre artiste favori (Theodort, Jul, Billie Eilish...) et devinez ses titres !',
+    description: 'Choisissez votre artiste favori (Theodort, Jul, Drake, SZA...) et devinez ses titres !',
     icon: '👑',
-    badge: 'Mode Star',
+    badge: '1 Seul Artiste',
     gradient: 'from-amber-400 via-pink-500 to-purple-600',
-    songsCount: 25,
-  },
-  {
-    id: 'global-hits',
-    name: '🌍 Top Hits Mondiaux',
-    description: 'The Weeknd, Sabrina Carpenter, Billie Eilish, Bruno Mars, Dua Lipa, Kendrick...',
-    icon: '🌍',
-    badge: 'International',
-    gradient: 'from-amber-500 to-rose-600',
-    songsCount: 35,
-  },
-  {
-    id: 'french-hits',
-    name: '🇫🇷 Hits Français & Variété',
-    description: 'Stromae, Angèle, Orelsan, Pierre Garnier, Santa, Céline Dion, Indochine...',
-    icon: '🇫🇷',
-    badge: 'France',
-    gradient: 'from-blue-600 via-white to-red-600',
-    songsCount: 30,
-  },
-  {
-    id: 'nostalgia-2000s',
-    name: '📻 Nostalgie 2000s & 2010s',
-    description: 'Britney, Eminem, Shakira, Rihanna, Black Eyed Peas, Coldplay...',
-    icon: '📻',
-    badge: 'Nostalgie',
-    gradient: 'from-cyan-500 to-blue-600',
-    songsCount: 30,
-  },
-  {
-    id: 'classics-80-90',
-    name: '🎸 Classiques Rock & Pop (80s/90s)',
-    description: 'Queen, Michael Jackson, Nirvana, ABBA, AC/DC, Guns N\' Roses...',
-    icon: '🎸',
-    badge: 'Légendes',
-    gradient: 'from-purple-600 to-indigo-700',
-    songsCount: 30,
-  },
-  {
-    id: 'electro-dance',
-    name: '🎧 Électro, Dance & Club',
-    description: 'Daft Punk, David Guetta, Avicii, Calvin Harris, Martin Garrix...',
-    icon: '🎧',
-    badge: 'Club',
-    gradient: 'from-emerald-500 to-teal-700',
-    songsCount: 30,
+    songsCount: 40,
   },
 ];
 
@@ -133,6 +115,8 @@ const searchCache = new Map<string, { timestamp: number; songs: Song[] }>();
 const playlistCache = new Map<string, { timestamp: number; songs: Song[] }>();
 const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
 
+export const customUrlPlaylists = new Map<string, { name: string; songs: Song[] }>();
+
 export const activeGameSongsCache: Song[] = [];
 
 export function registerActiveGameSongs(songs: Song[]) {
@@ -145,6 +129,134 @@ export function registerActiveGameSongs(songs: Song[]) {
   if (activeGameSongsCache.length > 250) {
     activeGameSongsCache.splice(0, activeGameSongsCache.length - 250);
   }
+}
+
+/**
+ * Imports any Spotify or Deezer playlist from URL.
+ * Automatically resolves audio previews and song metadata.
+ */
+export async function importPlaylistFromUrl(
+  url: string
+): Promise<{ success: boolean; id: string; name: string; songs: Song[] }> {
+  const cleanUrl = (url || '').trim();
+
+  // 1. Deezer playlist link: e.g. https://www.deezer.com/fr/playlist/1071669561 or https://deezer.page.link/...
+  const deezerMatch = cleanUrl.match(/playlist\/(\d+)/i);
+  if (cleanUrl.includes('deezer.com') && deezerMatch && deezerMatch[1]) {
+    const playlistId = deezerMatch[1];
+    const res = await fetch(`https://api.deezer.com/playlist/${playlistId}`);
+    if (!res.ok) {
+      throw new Error('Impossible de contacter Deezer pour cette playlist.');
+    }
+    const data: any = await res.json();
+    if (data.error) {
+      throw new Error(`Erreur Deezer: ${data.error.message || 'Playlist privée ou introuvable'}`);
+    }
+
+    const playlistName = data.title || 'Playlist Deezer';
+    const rawTracks = data.tracks?.data || [];
+    const songs: Song[] = [];
+
+    for (const t of rawTracks) {
+      if (t.preview) {
+        songs.push({
+          id: `dz_${t.id}`,
+          title: t.title,
+          artist: t.artist?.name || 'Artiste Inconnu',
+          album: t.album?.title || '',
+          previewUrl: t.preview,
+          artwork: t.album?.cover_medium || t.album?.cover_big || '',
+          year: t.release_date ? parseInt(t.release_date.slice(0, 4)) : undefined,
+        });
+      }
+    }
+
+    if (songs.length === 0) {
+      throw new Error('Aucun extrait audio jouable (preview 30s) trouvé dans cette playlist Deezer.');
+    }
+
+    customUrlPlaylists.set('custom-link', { name: playlistName, songs });
+    registerActiveGameSongs(songs);
+    return { success: true, id: 'custom-link', name: playlistName, songs };
+  }
+
+  // 2. Spotify playlist link: e.g. https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
+  const spotifyMatch = cleanUrl.match(/playlist\/([a-zA-Z0-9]+)/i);
+  if (cleanUrl.includes('spotify.com') && spotifyMatch && spotifyMatch[1]) {
+    const playlistId = spotifyMatch[1];
+    const embedRes = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      },
+    });
+
+    if (!embedRes.ok) {
+      throw new Error('Impossible de contacter Spotify pour cette playlist.');
+    }
+
+    const html = await embedRes.text();
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/);
+
+    let playlistName = 'Playlist Spotify';
+    const songs: Song[] = [];
+
+    if (nextDataMatch && nextDataMatch[1]) {
+      try {
+        const nextData = JSON.parse(nextDataMatch[1]);
+        const entity = nextData?.props?.pageProps?.state?.data?.entity;
+        if (entity?.name) {
+          playlistName = entity.name;
+        }
+
+        const trackList = entity?.trackList || [];
+        for (const t of trackList) {
+          if (t.audioPreview?.url) {
+            songs.push({
+              id: `sp_${t.uri || Math.random().toString(36).slice(2)}`,
+              title: t.title,
+              artist: t.subtitle || 'Artiste Inconnu',
+              album: entity?.name || '',
+              previewUrl: t.audioPreview.url,
+              artwork: entity?.coverArt?.sources?.[0]?.url || '',
+            });
+          }
+        }
+
+        // For tracks where Spotify embed doesn't include audioPreview, resolve via fast Deezer search
+        if (songs.length < 8 && trackList.length > 0) {
+          const candidates = trackList.slice(0, 15);
+          for (const cand of candidates) {
+            if (songs.some(s => s.title.toLowerCase() === cand.title.toLowerCase())) continue;
+            try {
+              const query = `${cand.title} ${cand.subtitle || ''}`.trim();
+              const dzResults = await searchFreeMusic(query, 1);
+              if (dzResults.length > 0 && dzResults[0].previewUrl) {
+                songs.push({
+                  ...dzResults[0],
+                  id: `sp_res_${dzResults[0].id}`,
+                });
+              }
+              if (songs.length >= 15) break;
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse Spotify playlist data:', e);
+      }
+    }
+
+    if (songs.length === 0) {
+      throw new Error('Aucun titre avec extrait audio disponible trouvé. Vérifiez le lien Spotify ou testez avec un lien Deezer.');
+    }
+
+    customUrlPlaylists.set('custom-link', { name: playlistName, songs });
+    registerActiveGameSongs(songs);
+    return { success: true, id: 'custom-link', name: playlistName, songs };
+  }
+
+  throw new Error('Format de lien non reconnu. Veuillez fournir une URL de playlist Spotify ou Deezer valide.');
 }
 
 /**
@@ -626,51 +738,51 @@ export async function getGameSongs(
     return shuffledArtistSongs;
   }
 
-  // 2. Official Charts with strict genre and year filtering
+  // 1.5 Custom Link Playlist
+  if (playlistId === 'custom-link' || playlistId === 'custom') {
+    const custom = customUrlPlaylists.get('custom-link') || customUrlPlaylists.get(playlistId);
+    if (custom && custom.songs.length > 0) {
+      const shuffled = shuffleArray(custom.songs).slice(0, count);
+      registerActiveGameSongs(shuffled);
+      return shuffled;
+    }
+  }
+
+  // 2. Official Charts with strict genre and theme mapping
   let pool: Song[] = [];
 
-  if (playlistId === 'trending-gen-z') {
-    const [tracksMoment, tracksTikTok] = await Promise.all([
-      loadDeezerPlaylist('playlist/53362031/tracks?limit=60'), // Les titres du moment (60 tracks)
-      loadDeezerPlaylist('playlist/1082651151/tracks?limit=60'), // TikTok Hits France (60 tracks)
-    ]);
-    pool = [...tracksMoment, ...tracksTikTok];
-    // Filter modern tracks only
-    pool = pool.filter(s => !s.year || s.year >= 2021);
-  } else if (playlistId === 'rap-fr-gen-z') {
+  if (playlistId === 'rap-fr' || playlistId === 'rap-fr-gen-z') {
     const [tracksActuRap, tracksRap2024] = await Promise.all([
-      loadDeezerPlaylist('playlist/1071669561/tracks?limit=80'), // Actu Rap FR (Narjes - Deezer Rap Editor)
-      loadDeezerPlaylist('playlist/13154564983/tracks?limit=75'), // Rap Français 2024
+      loadDeezerPlaylist('playlist/1071669561/tracks?limit=80'), // Actu Rap FR
+      loadDeezerPlaylist('playlist/13154564983/tracks?limit=75'), // Rap Français
     ]);
     pool = [...tracksActuRap, ...tracksRap2024];
+  } else if (playlistId === 'rap-mondial') {
+    const [tracksRapUS, tracksTurnUp] = await Promise.all([
+      loadDeezerPlaylist('playlist/2506597284/tracks?limit=80'), // Rap US Hits
+      loadDeezerPlaylist('playlist/5796345922/tracks?limit=60'), // Turn Up US
+    ]);
+    pool = [...tracksRapUS, ...tracksTurnUp];
+  } else if (playlistId === 'rnb') {
+    const [tracksRnb, tracksVibes] = await Promise.all([
+      loadDeezerPlaylist('playlist/1999466402/tracks?limit=80'), // R&B Hits
+      loadDeezerPlaylist('playlist/9378048742/tracks?limit=60'), // RnB Vibes
+    ]);
+    pool = [...tracksRnb, ...tracksVibes];
   } else if (playlistId === 'french-hits') {
-    const [tracksBleuBlanc, tracksVariete] = await Promise.all([
-      loadDeezerPlaylist('playlist/1189520191/tracks?limit=60'), // Bleu Blanc Hits
-      loadDeezerPlaylist('playlist/788022051/tracks?limit=50'), // Les Variétés françaises
+    const [tracksBleuBlanc, tracksMoment] = await Promise.all([
+      loadDeezerPlaylist('playlist/1189520191/tracks?limit=70'), // Bleu Blanc Hits
+      loadDeezerPlaylist('playlist/53362031/tracks?limit=60'), // Titres du moment
     ]);
-    pool = [...tracksBleuBlanc, ...tracksVariete];
-  } else if (playlistId === 'classics-80-90') {
-    const [tracks80s, tracksSoiree] = await Promise.all([
-      loadDeezerPlaylist('playlist/867825522/tracks?limit=80'), // 80s Hits (Deezer Pop Editor)
-      loadDeezerPlaylist('playlist/1743878062/tracks?limit=50'), // Soirée 80
-    ]);
-    pool = [...tracks80s, ...tracksSoiree];
-  } else if (playlistId === 'nostalgia-2000s') {
-    const [tracks2000, tracksTop2000] = await Promise.all([
-      loadDeezerPlaylist('playlist/751764391/tracks?limit=60'), // En mode 2000
-      loadDeezerPlaylist('playlist/11837091441/tracks?limit=80'), // Top Hits 2000
-    ]);
-    pool = [...tracks2000, ...tracksTop2000];
+    pool = [...tracksBleuBlanc, ...tracksMoment];
   } else if (playlistId === 'global-hits') {
     const [tracksGlobal, tracksTopWorld] = await Promise.all([
+      loadDeezerPlaylist('playlist/3155776842/tracks?limit=80'), // Top Worldwide
       loadDeezerPlaylist('playlist/2098157264/tracks?limit=60'), // Global Hits
-      loadDeezerPlaylist('playlist/3155776842/tracks?limit=60'), // Top Worldwide
     ]);
     pool = [...tracksGlobal, ...tracksTopWorld];
-  } else if (playlistId === 'electro-dance') {
-    pool = await loadDeezerPlaylist('playlist/706093725/tracks?limit=60'); // Global Dance Hits
   } else {
-    pool = await loadDeezerPlaylist('playlist/53362031/tracks?limit=60');
+    pool = await loadDeezerPlaylist('playlist/1071669561/tracks?limit=80');
   }
 
   // If pool has enough diverse tracks, return them
@@ -682,25 +794,31 @@ export async function getGameSongs(
     }
   }
 
-  // Curated iconic hit artists guarantee high-profile recognizable music
+  // Curated iconic hit artists for fallbacks
   const artistSets: Record<string, string[]> = {
-    'trending-gen-z': [
-      'Gazo', 'SDM', 'Tiakola', 'Theodort', 'Jul', 'PLK', 'Werenoi',
-      'Sabrina Carpenter', 'Billie Eilish', 'Kendrick Lamar', 'Dua Lipa', 'The Weeknd',
-      'Carbonne', 'Yamê', 'Chappell Roan', 'Charli xcx', 'Benson Boone', 'Teddy Swims', 'Ninho',
-    ],
-    'rap-fr-gen-z': [
-      'Gazo', 'Tiakola', 'SDM', 'Werenoi', 'PLK', 'Jul', 'Theodort', 'Ninho',
+    'rap-fr': [
+      'Gazo', 'SDM', 'Tiakola', 'Theodort', 'Jul', 'PLK', 'Werenoi', 'Ninho',
       'Carbonne', 'Yamê', 'Favé', 'Josman', 'Shay', 'Franglish', 'Zola',
     ],
-    'global-hits': ['The Weeknd', 'Taylor Swift', 'Dua Lipa', 'Bruno Mars', 'Billie Eilish', 'Sabrina Carpenter', 'Kendrick Lamar', 'SZA'],
-    'french-hits': ['Stromae', 'Angèle', 'Pierre Garnier', 'Santa', 'Orelsan', 'Céline Dion', 'Indochine', 'Gazo', 'Theodort'],
-    'classics-80-90': ['Michael Jackson', 'Queen', 'Nirvana', 'ABBA', 'ACDC', 'Guns N Roses', 'a-ha'],
-    'nostalgia-2000s': ['Britney Spears', 'Eminem', 'Black Eyed Peas', 'Lady Gaga', 'Shakira', 'Rihanna'],
-    'electro-dance': ['Daft Punk', 'David Guetta', 'Avicii', 'Calvin Harris', 'Martin Garrix'],
+    'rap-mondial': [
+      'Drake', 'Travis Scott', 'Kendrick Lamar', 'Eminem', '21 Savage',
+      'Metro Boomin', 'Future', 'Post Malone', 'Kanye West', 'Jack Harlow',
+    ],
+    'rnb': [
+      'SZA', 'The Weeknd', 'Brent Faiyaz', 'Frank Ocean', 'Beyoncé',
+      'Chris Brown', 'Usher', 'Rihanna', 'Alicia Keys', 'Daniel Caesar',
+    ],
+    'french-hits': [
+      'Stromae', 'Angèle', 'Pierre Garnier', 'Santa', 'Orelsan',
+      'Céline Dion', 'Indochine', 'Gazo', 'Theodort', 'Clara Luciani',
+    ],
+    'global-hits': [
+      'The Weeknd', 'Taylor Swift', 'Dua Lipa', 'Bruno Mars', 'Billie Eilish',
+      'Sabrina Carpenter', 'Kendrick Lamar', 'Ed Sheeran', 'Coldplay',
+    ],
   };
 
-  const artists = artistSets[playlistId] || artistSets['trending-gen-z'];
+  const artists = artistSets[playlistId] || artistSets['rap-fr'];
   const shuffledArtists = shuffleArray([...artists]).slice(0, count);
   const fallbackSongs: Song[] = [];
 
@@ -718,7 +836,7 @@ export async function getGameSongs(
   }
 
   // Emergency seed fallback
-  const seeds = pickDiverseSongs(SEED_TRACKS[playlistId] || SEED_TRACKS['trending-gen-z'] || [], count);
+  const seeds = pickDiverseSongs(SEED_TRACKS[playlistId] || SEED_TRACKS['rap-fr'] || SEED_TRACKS['rap-fr-gen-z'] || [], count);
   registerActiveGameSongs(seeds);
   return seeds;
 }
@@ -918,7 +1036,7 @@ export const SEED_TRACKS: Record<string, Song[]> = {
       genre: 'Pop Rock',
     },
   ],
-  'rap-fr-gen-z': [
+  'rap-fr': [
     {
       id: 'rf-1',
       title: 'Bolide allemand',
@@ -958,6 +1076,64 @@ export const SEED_TRACKS: Record<string, Song[]> = {
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/05/23/dc/0523dcfe-3ca6-be0a-9d62-7fa689eb06b6/carbonne.jpg/600x600bb.jpg',
       year: 2024,
       genre: 'Rap / Pop Urbaine',
+    },
+  ],
+  'rap-mondial': [
+    {
+      id: 'rm-1',
+      title: 'Not Like Us',
+      artist: 'Kendrick Lamar',
+      album: 'Not Like Us - Single',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/05/db/5d/05db5d24-742a-a53a-c3ad-e5a07c92a95c/mzaf_12448375525547690623.plus.aac.p.m4a',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/71/84/38/7184382c-b26a-91d5-8eb6-a36ff8580231/24UMGIM52377.rgb.jpg/600x600bb.jpg',
+      year: 2024,
+      genre: 'Rap US',
+    },
+  ],
+  'rnb': [
+    {
+      id: 'rnb-1',
+      title: 'Snooze',
+      artist: 'SZA',
+      album: 'SOS',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/28/7d/51/287d519b-a01c-7cb8-cb48-b42e7428f522/mzaf_8422409747514332906.plus.aac.p.m4a',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/64/9b/87/649b8764-16a7-0205-d30e-5a7ecb9d0383/196589632832.jpg/600x600bb.jpg',
+      year: 2022,
+      genre: 'R&B',
+    },
+  ],
+  'french-hits': [
+    {
+      id: 'fh-1',
+      title: 'Ceux qu\'on était',
+      artist: 'Pierre Garnier',
+      album: 'Chaque seconde',
+      previewUrl: 'https://cdnt-preview.dzcdn.net/api/1/1/3/8/4/0/38477d61b343aa5c31495c6c2b186bfe.mp3',
+      artwork: 'https://e-cdns-images.dzcdn.net/images/cover/9fa64df4efae627ec75c1ad9e89bcf28/500x500-000000-80-0-0.jpg',
+      year: 2024,
+      genre: 'Variété Française',
+    },
+  ],
+  'global-hits': [
+    {
+      id: 'gz-1',
+      title: 'Espresso',
+      artist: 'Sabrina Carpenter',
+      album: 'Short n\' Sweet',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/e9/4d/02/e94d0230-11ee-ef94-d2cf-a5d547bd73f4/mzaf_554140808559155562.plus.aac.p.m4a',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/57/e8/7b/57e87ba0-5057-9bb9-c247-ce7dbe426e89/24UMGIM55213.rgb.jpg/600x600bb.jpg',
+      year: 2024,
+      genre: 'Pop',
+    },
+    {
+      id: 'gz-2',
+      title: 'BIRDS OF A FEATHER',
+      artist: 'Billie Eilish',
+      album: 'HIT ME HARD AND SOFT',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/34/31/d3/3431d34e-847f-5d66-df83-0bce688d997e/mzaf_18106743962423782018.plus.aac.p.m4a',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/9f/69/929f69f1-9977-3a44-d674-11f70c852d1b/24UMGIM36186.rgb.jpg/600x600bb.jpg',
+      year: 2024,
+      genre: 'Alternative Pop',
     },
   ],
 };

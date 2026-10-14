@@ -15,6 +15,8 @@ import {
   Check,
   BarChart3,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export interface AttemptItem {
@@ -81,9 +83,13 @@ export function extractCoreTitle(title: string): string {
 }
 
 export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
-  const [selectedPlaylist, setSelectedPlaylist] = useState<string>('trending-gen-z');
+  const [selectedPlaylist, setSelectedPlaylist] = useState<string>('rap-fr');
   const [singleArtistTarget, setSingleArtistTarget] = useState<string>('Theodort');
   const [artistInputText, setArtistInputText] = useState<string>('');
+  const [playlistUrlInput, setPlaylistUrlInput] = useState<string>('');
+  const [importingUrl, setImportingUrl] = useState<boolean>(false);
+  const [importUrlError, setImportUrlError] = useState<string | null>(null);
+  const [customPlaylistName, setCustomPlaylistName] = useState<string | null>(null);
   const [songPool, setSongPool] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [currentStep, setCurrentStep] = useState(1);
@@ -94,6 +100,68 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
   const [loading, setLoading] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
+
+  // Draggable theme slider refs & state
+  const themesScrollRef = useRef<HTMLDivElement>(null);
+  const isMouseDownRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const hasDraggedRef = useRef(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollBounds = () => {
+    const el = themesScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 6);
+  };
+
+  useEffect(() => {
+    checkScrollBounds();
+    window.addEventListener('resize', checkScrollBounds);
+    return () => window.removeEventListener('resize', checkScrollBounds);
+  }, [playlists]);
+
+  const handleScrollLeft = () => {
+    themesScrollRef.current?.scrollBy({ left: -220, behavior: 'smooth' });
+    setTimeout(checkScrollBounds, 250);
+  };
+
+  const handleScrollRight = () => {
+    themesScrollRef.current?.scrollBy({ left: 220, behavior: 'smooth' });
+    setTimeout(checkScrollBounds, 250);
+  };
+
+  const onSliderMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = themesScrollRef.current;
+    if (!el) return;
+    isMouseDownRef.current = true;
+    startXRef.current = e.pageX - el.offsetLeft;
+    scrollLeftRef.current = el.scrollLeft;
+    hasDraggedRef.current = false;
+  };
+
+  const onSliderMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMouseDownRef.current) return;
+    const el = themesScrollRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5;
+    if (Math.abs(x - startXRef.current) > 5) {
+      hasDraggedRef.current = true;
+    }
+    el.scrollLeft = scrollLeftRef.current - walk;
+    checkScrollBounds();
+  };
+
+  const onSliderMouseUpOrLeave = () => {
+    isMouseDownRef.current = false;
+    setTimeout(() => {
+      hasDraggedRef.current = false;
+    }, 60);
+  };
 
   // Volume state (persisted)
   const [volume, setVolume] = useState<number>(() => {
@@ -136,9 +204,19 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
     playerRef.current?.setVolume(newVol);
   };
 
-  // Load songs on playlist or artist change
+  // Load songs on playlist or artist change & auto-scroll theme into view
   useEffect(() => {
-    loadSongs(selectedPlaylist, singleArtistTarget);
+    if (selectedPlaylist !== 'custom-link') {
+      loadSongs(selectedPlaylist, singleArtistTarget);
+    }
+    const timer = setTimeout(() => {
+      checkScrollBounds();
+      const activeEl = themesScrollRef.current?.querySelector('[data-selected="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }, 60);
+    return () => clearTimeout(timer);
   }, [selectedPlaylist, singleArtistTarget]);
 
   const loadSongs = async (playlistId: string, artistName?: string) => {
@@ -159,7 +237,13 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
         const data = await res.json();
         const songList: Song[] = Array.isArray(data) ? data : data.songs || [];
         if (songList.length > 0) {
-          setSongPool(songList);
+          // Thorough random shuffle
+          const shuffled = [...songList];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          setSongPool(shuffled);
           setCurrentSongIndex(0);
         }
       }
@@ -167,6 +251,45 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
       console.error('Error loading solo songs:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportPlaylistUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = playlistUrlInput.trim();
+    if (!url.startsWith('http')) {
+      setImportUrlError('Veuillez coller un lien valide (Spotify ou Deezer)');
+      return;
+    }
+    setImportingUrl(true);
+    setImportUrlError(null);
+    try {
+      const res = await fetch(`/api/music/import-playlist?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (!res.ok || data.success === false || data.error) {
+        throw new Error(data.message || data.error || 'Erreur lors de l’import');
+      }
+      const songs: Song[] = data.songs || [];
+      if (songs.length === 0) {
+        throw new Error('Aucun extrait trouvé dans cette playlist');
+      }
+      const shuffled = [...songs];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      setSongPool(shuffled);
+      setCurrentSongIndex(0);
+      setAttempts([]);
+      setCurrentStep(1);
+      setGameStatus('playing');
+      setSelectedPlaylist('custom-link');
+      setCustomPlaylistName(data.name || 'Playlist importée');
+      setPlaylistUrlInput('');
+    } catch (err: any) {
+      setImportUrlError(err.message || 'Impossible de charger la playlist');
+    } finally {
+      setImportingUrl(false);
     }
   };
 
@@ -492,77 +615,149 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-4 animate-in fade-in duration-300">
-      {/* Mode Header: Mix Tendances vs 100% Artiste Unique */}
+      {/* Mode & Theme Selector Header */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Main Mode Toggle Buttons */}
-          <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800">
-            <button
-              onClick={() => setSelectedPlaylist('trending-gen-z')}
-              type="button"
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                selectedPlaylist !== 'single-artist'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>Top Tendances</span>
-            </button>
-
-            <button
-              onClick={() => setSelectedPlaylist('single-artist')}
-              type="button"
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                selectedPlaylist === 'single-artist'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-amber-300'
-              }`}
-            >
-              <Crown className="w-4 h-4 fill-current" />
-              <span>100% Artiste</span>
-            </button>
+        {/* Top Info & Stats bar */}
+        <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800/80">
+          <div className="flex items-center gap-1.5 font-bold text-slate-300 min-w-0">
+            <span className="text-slate-500 uppercase tracking-wider text-[11px] shrink-0">Thème</span>
+            <span className="text-slate-600 shrink-0">·</span>
+            <span className="text-emerald-400 font-extrabold text-xs truncate">
+              {playlists.find(p => p.id === selectedPlaylist)?.name || (selectedPlaylist === 'custom-link' ? '🔗 Playlist personnalisée' : selectedPlaylist)}
+            </span>
           </div>
 
-          {/* Stats & Streak counter */}
-          <div className="flex items-center justify-end gap-2 text-xs text-slate-300">
-            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-              <Flame className="w-4 h-4 text-orange-400" />
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800 text-slate-300 text-xs">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>Série : <strong className="text-orange-400 tabular-nums">{stats.currentStreak}</strong></span>
             </div>
 
             <button
               onClick={() => setShowStatsModal(true)}
               type="button"
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-700 transition-colors cursor-pointer"
-              title="Voir les statistiques"
+              className="flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 w-7 h-7 rounded-xl border border-slate-700 transition-colors cursor-pointer"
+              title="Statistiques"
             >
-              <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline font-medium">Stats</span>
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
             </button>
           </div>
         </div>
 
-        {/* Sub-bar: Playlist tags for Mix mode OR streamlined Artist selector for 100% Artiste */}
-        {selectedPlaylist !== 'single-artist' ? (
-          <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-800 scrollbar-none">
-            {playlists
-              .filter(p => p.id !== 'single-artist')
-              .map(pl => (
+        {/* Draggable and scrollable full-width themes slider */}
+        <div className="relative flex items-center group">
+          {canScrollLeft && (
+            <button
+              onClick={handleScrollLeft}
+              type="button"
+              className="absolute left-0 z-10 w-7 h-7 -ml-2 rounded-full bg-slate-800/95 hover:bg-slate-700 text-white shadow-lg border border-slate-700 flex items-center justify-center transition-all cursor-pointer backdrop-blur-sm"
+              title="Faire glisser vers la gauche"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+
+          <div
+            ref={themesScrollRef}
+            onMouseDown={onSliderMouseDown}
+            onMouseMove={onSliderMouseMove}
+            onMouseUp={onSliderMouseUpOrLeave}
+            onMouseLeave={onSliderMouseUpOrLeave}
+            onScroll={checkScrollBounds}
+            onWheel={(e) => {
+              if (e.deltaY !== 0 && themesScrollRef.current) {
+                themesScrollRef.current.scrollLeft += e.deltaY;
+                checkScrollBounds();
+              }
+            }}
+            className="w-full flex items-center gap-2 overflow-x-auto scrollbar-none py-1 cursor-grab active:cursor-grabbing select-none scroll-smooth"
+          >
+            {playlists.map(pl => {
+              const isSelected = selectedPlaylist === pl.id;
+              return (
                 <button
                   key={pl.id}
-                  onClick={() => setSelectedPlaylist(pl.id)}
+                  onClick={() => {
+                    if (hasDraggedRef.current) return;
+                    setSelectedPlaylist(pl.id);
+                  }}
                   type="button"
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    selectedPlaylist === pl.id
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                      : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  data-selected={isSelected}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                    isSelected
+                      ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold ring-2 ring-emerald-400/40'
+                      : 'bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800'
                   }`}
                 >
-                  {pl.icon} {pl.name}
+                  <span>{pl.icon}</span>
+                  <span className="ml-1.5">{pl.name.replace(/^[^\w\s]+\s*/, '')}</span>
                 </button>
-              ))}
+              );
+            })}
+
+            {/* Custom Playlist Link Button */}
+            <button
+              onClick={() => {
+                if (hasDraggedRef.current) return;
+                setSelectedPlaylist('custom-link');
+              }}
+              type="button"
+              data-selected={selectedPlaylist === 'custom-link'}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                selectedPlaylist === 'custom-link'
+                  ? 'bg-indigo-600 text-white shadow-md font-extrabold ring-2 ring-indigo-400/40'
+                  : 'bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800'
+              }`}
+            >
+              <span>🔗</span>
+              <span className="ml-1.5">Lien</span>
+            </button>
           </div>
-        ) : (
+
+          {canScrollRight && (
+            <button
+              onClick={handleScrollRight}
+              type="button"
+              className="absolute right-0 z-10 w-7 h-7 -mr-2 rounded-full bg-slate-800/95 hover:bg-slate-700 text-white shadow-lg border border-slate-700 flex items-center justify-center transition-all cursor-pointer backdrop-blur-sm"
+              title="Faire glisser vers la droite"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Custom playlist URL input box when custom-link is selected */}
+        {selectedPlaylist === 'custom-link' && (
+          <div className="pt-2.5 border-t border-slate-800 space-y-2">
+            <form onSubmit={handleImportPlaylistUrl} className="flex gap-1.5">
+              <input
+                type="url"
+                value={playlistUrlInput}
+                onChange={e => setPlaylistUrlInput(e.target.value)}
+                placeholder="Coller un lien de playlist Spotify ou Deezer..."
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400"
+              />
+              <button
+                type="submit"
+                disabled={importingUrl}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shrink-0"
+              >
+                {importingUrl ? 'Chargement...' : 'Charger'}
+              </button>
+            </form>
+            {importUrlError && (
+              <p className="text-[11px] text-rose-400 font-medium">{importUrlError}</p>
+            )}
+            {customPlaylistName && (
+              <p className="text-xs text-indigo-300 font-semibold truncate">
+                🎵 {customPlaylistName} ({songPool.length} titres)
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Dedicated controls for 100% Un Seul Artiste */}
+        {selectedPlaylist === 'single-artist' && (
           <div className="pt-2.5 border-t border-slate-800 space-y-2">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
               {/* Custom artist input */}
@@ -629,7 +824,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
         </div>
       ) : currentSong ? (
         <>
-          {/* THE AUDIO PLAYER WITH PROGRESS BAR, PLAY BUTTON & PASSER BUTTON AT BOTTOM-RIGHT */}
+          {/* THE AUDIO PLAYER */}
           <AudioWaveform
             steps={SNIPPET_STEPS}
             currentStep={currentStep}
@@ -638,11 +833,9 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
             onTogglePlay={handleTogglePlay}
             onPlaySegment={handlePlaySegment}
             onSeek={handleSeek}
-            onReplayAll={handleReplayAll}
             isRevealed={gameStatus !== 'playing'}
             volume={volume}
             onVolumeChange={handleVolumeChange}
-            onSkip={handleSkip}
           />
 
           {/* IN PLAY: SEARCH & SUBMIT */}
@@ -650,6 +843,7 @@ export const SoloGame: React.FC<SoloGameProps> = ({ playlists }) => {
             <div className="relative z-30 bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl backdrop-blur-md">
               <SongSearchInput
                 onGuess={handleGuess}
+                onSkip={handleSkip}
                 currentStep={currentStep}
                 totalSteps={SNIPPET_STEPS.length}
                 steps={SNIPPET_STEPS}

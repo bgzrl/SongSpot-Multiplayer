@@ -6,6 +6,8 @@ interface NavbarProps {
   onTabChange: (tab: 'multiplayer' | 'solo') => void;
   isConnected?: boolean;
   onHomeClick?: () => void;
+  isInRoom?: boolean;
+  onLeaveRoom?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -13,6 +15,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   isConnected = true,
   onHomeClick,
+  isInRoom = false,
+  onLeaveRoom,
 }) => {
   const [showRules, setShowRules] = useState(false);
 
@@ -67,8 +71,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
-          {/* Bouton d'aide à droite */}
+          {/* Right Controls: Quitter la salle if in room + Help button */}
           <div className="flex items-center gap-2">
+            {isInRoom && onLeaveRoom && (
+              <button
+                onClick={onLeaveRoom}
+                type="button"
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
+                title="Quitter la partie et retourner à l'accueil"
+              >
+                <span>Quitter 🚪</span>
+              </button>
+            )}
+
             <button
               onClick={() => setShowRules(true)}
               type="button"

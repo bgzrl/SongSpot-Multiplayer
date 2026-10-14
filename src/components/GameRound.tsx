@@ -27,6 +27,7 @@ interface GameRoundProps {
   onGuess: (song: Song, queryText: string) => void;
   onSkip: () => void;
   onForceEndRound?: () => void;
+  onLeaveRoom?: () => void;
 }
 
 const DEFAULT_SNIPPET_STEPS = [1.0, 2.0, 4.0, 7.0, 11.0, 16.0];
@@ -37,6 +38,7 @@ export const GameRound: React.FC<GameRoundProps> = ({
   onGuess,
   onSkip,
   onForceEndRound,
+  onLeaveRoom,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -255,10 +257,10 @@ export const GameRound: React.FC<GameRoundProps> = ({
           </div>
         </div>
 
-        {/* Right: Round Countdown Timer */}
-        <div className="flex items-center gap-2 tabular-nums">
+        {/* Right: Round Countdown Timer & Leave Button */}
+        <div className="flex items-center gap-2">
           <div
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-bold text-sm sm:text-base ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border font-bold text-sm sm:text-base tabular-nums ${
               isTimeCritical
                 ? 'bg-rose-500/20 border-rose-500/80 text-rose-400 animate-pulse ring-2 ring-rose-500/30'
                 : 'bg-slate-800/80 border-slate-700 text-slate-200'
@@ -267,10 +269,21 @@ export const GameRound: React.FC<GameRoundProps> = ({
             <Clock className={`w-4 h-4 ${isTimeCritical ? 'text-rose-400 animate-spin' : 'text-slate-400'}`} />
             <span>{roomState.roundTimeLeft}s</span>
           </div>
+
+          {onLeaveRoom && (
+            <button
+              onClick={onLeaveRoom}
+              type="button"
+              className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              title="Quitter la partie"
+            >
+              <span>Quitter 🚪</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* THE HORIZONTAL AUDIO BAR & PASSER BUTTON */}
+      {/* THE HORIZONTAL AUDIO BAR */}
       <AudioWaveform
         steps={steps}
         currentStep={myStep}
@@ -279,11 +292,9 @@ export const GameRound: React.FC<GameRoundProps> = ({
         onTogglePlay={handleTogglePlay}
         onPlaySegment={handlePlaySegment}
         onSeek={handleSeek}
-        onReplayAll={handleReplayAll}
         isRevealed={hasGuessed}
         volume={volume}
         onVolumeChange={handleVolumeChange}
-        onSkip={!hasGuessed ? handleSkipSnippet : undefined}
       />
 
       {/* SEARCH INPUT & DUAL BUTTONS (Higher stacking context z-30 so dropdown floats on top of player progression) */}

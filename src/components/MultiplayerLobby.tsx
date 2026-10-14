@@ -21,6 +21,7 @@ interface MultiplayerLobbyProps {
   onStartGame: () => void;
   onToggleReady: () => void;
   onUpdateSettings: (settings: Partial<RoomState['settings']>) => void;
+  onLeaveRoom?: () => void;
 }
 
 export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
@@ -30,14 +31,22 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   onStartGame,
   onToggleReady,
   onUpdateSettings,
+  onLeaveRoom,
 }) => {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [customSearch, setCustomSearch] = useState(roomState.settings.customArtist || '');
+  const [playlistUrlInput, setPlaylistUrlInput] = useState('');
+  const [importingUrl, setImportingUrl] = useState(false);
+  const [importUrlError, setImportUrlError] = useState<string | null>(null);
 
   const isHost = roomState.hostId === currentUserId;
   const me = roomState.players.find(p => p.id === currentUserId);
-  const allReady = roomState.players.every(p => p.isReady || p.isHost);
+  const nonHostPlayers = roomState.players.filter(p => !p.isHost && p.id !== roomState.hostId);
+  const totalNonHost = nonHostPlayers.length;
+  const readyCount = nonHostPlayers.filter(p => p.isReady).length;
+  const hasEnoughPlayers = roomState.players.length >= 2;
+  const allReady = hasEnoughPlayers && totalNonHost > 0 && readyCount === totalNonHost;
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(roomState.roomId);
@@ -56,8 +65,36 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     e.preventDefault();
     onUpdateSettings({
       customArtist: customSearch.trim(),
-      playlistName: customSearch.trim() ? `Artiste : ${customSearch.trim()}` : 'Top Hits Mondiaux',
+      playlistName: customSearch.trim() ? `👑 100% ${customSearch.trim()}` : '⚡ Rap FR',
     });
+  };
+
+  const handleImportPlaylistUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = playlistUrlInput.trim();
+    if (!url.startsWith('http')) {
+      setImportUrlError('Veuillez coller un lien valide (Spotify ou Deezer)');
+      return;
+    }
+    setImportingUrl(true);
+    setImportUrlError(null);
+    try {
+      const res = await fetch(`/api/music/import-playlist?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (!res.ok || data.success === false || data.error) {
+        throw new Error(data.message || data.error || 'Erreur lors de l’import');
+      }
+      onUpdateSettings({
+        playlistId: 'custom-link',
+        playlistName: `🔗 ${data.name || 'Playlist importée'} (${data.songs?.length || 0} titres)`,
+        customArtist: url,
+      });
+      setPlaylistUrlInput('');
+    } catch (err: any) {
+      setImportUrlError(err.message || 'Impossible de charger la playlist');
+    } finally {
+      setImportingUrl(false);
+    }
   };
 
   return (
@@ -81,15 +118,15 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
           </p>
         </div>
 
-        {/* Copy Buttons */}
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
+        {/* Header Action Buttons */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
           <button
             onClick={copyRoomCode}
             type="button"
             className="flex-1 md:flex-initial px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
           >
             {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            {copiedCode ? 'Code copié !' : 'Copier Code'}
+            {copiedCode ? 'Copié !' : 'Copier Code'}
           </button>
 
           <button
@@ -98,8 +135,19 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
             className="flex-1 md:flex-initial px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
           >
             {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
-            {copiedLink ? 'Lien copié !' : 'Partager Lien'}
+            {copiedLink ? 'Copié !' : 'Inviter'}
           </button>
+
+          {onLeaveRoom && (
+            <button
+              onClick={onLeaveRoom}
+              type="button"
+              className="px-4 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-white border border-rose-500/30 text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+              title="Quitter la salle"
+            >
+              <span>Quitter 🚪</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -186,10 +234,22 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
             {isHost && (
               <button
                 onClick={onStartGame}
+                disabled={!allReady}
                 type="button"
-                className="w-full sm:flex-1 px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-base rounded-xl shadow-md transition-all flex items-center justify-center gap-2.5 cursor-pointer active:scale-95"
+                className={`w-full sm:flex-1 px-8 py-3.5 font-bold text-base rounded-xl shadow-md transition-all flex items-center justify-center gap-2.5 ${
+                  allReady
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 cursor-pointer active:scale-95 shadow-emerald-500/20'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-60'
+                }`}
               >
-                <Play className="w-5 h-5 fill-current" /> Lancer la partie !
+                <Play className="w-5 h-5 fill-current" />
+                <span>
+                  {!hasEnoughPlayers
+                    ? "En attente d'autres joueurs (2 joueurs min.)"
+                    : !allReady
+                    ? `En attente des joueurs (${readyCount}/${totalNonHost} prêts)`
+                    : 'Lancer la partie ! 🚀'}
+                </span>
               </button>
             )}
           </div>
@@ -293,6 +353,39 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
               </div>
             </div>
 
+            {/* URL Playlist Link Import (Spotify / Deezer) */}
+            {isHost && (
+              <div className="mt-3 p-3 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2">
+                <label className="block text-xs font-semibold text-slate-300">
+                  🔗 Ou coller le lien d'une playlist (Spotify / Deezer)
+                </label>
+                <form onSubmit={handleImportPlaylistUrl} className="flex gap-1.5">
+                  <input
+                    type="url"
+                    value={playlistUrlInput}
+                    onChange={e => setPlaylistUrlInput(e.target.value)}
+                    placeholder="Lien playlist Spotify ou Deezer..."
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={importingUrl}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    {importingUrl ? '...' : 'Charger'}
+                  </button>
+                </form>
+                {importUrlError && (
+                  <p className="text-[11px] text-rose-400">{importUrlError}</p>
+                )}
+                {roomState.settings.playlistId === 'custom-link' && (
+                  <p className="text-[11px] text-emerald-400 font-semibold truncate">
+                    {roomState.settings.playlistName}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* If Single Artist is selected */}
             {roomState.settings.playlistId === 'single-artist' && (
               <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-2">
@@ -351,12 +444,6 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                 )}
               </div>
             )}
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-slate-400">
-            {isHost
-              ? 'En tant qu’hôte, vous configurez et lancez la partie quand vous le souhaitez.'
-              : 'L’hôte configure la partie et peut la lancer dès que tout le monde est prêt.'}
           </div>
         </div>
       </div>

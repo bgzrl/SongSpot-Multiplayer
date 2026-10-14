@@ -9,6 +9,7 @@ import {
   getGameSongs,
   checkGuessMatch,
   SEED_TRACKS,
+  importPlaylistFromUrl,
 } from './server/musicService.js';
 import {
   Song,
@@ -259,8 +260,22 @@ async function startServer() {
     res.json(PLAYLIST_PRESETS);
   });
 
+  app.get('/api/music/import-playlist', async (req, res) => {
+    const url = req.query.url as string;
+    if (!url || !url.startsWith('http')) {
+      return res.status(400).json({ success: false, message: 'URL de playlist invalide' });
+    }
+    try {
+      const result = await importPlaylistFromUrl(url);
+      res.json(result);
+    } catch (err: any) {
+      console.error('Error importing playlist from URL:', err);
+      res.status(500).json({ success: false, message: err?.message || 'Erreur lors de l’importation de la playlist' });
+    }
+  });
+
   app.get('/api/music/solo-songs', async (req, res) => {
-    const playlistId = (req.query.playlist as string) || 'trending-gen-z';
+    const playlistId = (req.query.playlist as string) || 'rap-fr';
     const custom = (req.query.artist as string) || (req.query.custom as string);
     const count = Math.min(Number(req.query.count) || 10, 20);
     const songs = await getGameSongs(playlistId, count, custom);
@@ -330,8 +345,8 @@ async function startServer() {
             const initialSettings: GameSettings = {
               totalRounds: 5,
               roundDurationSec: 45,
-              playlistId: payload.playlistId || 'trending-gen-z',
-              playlistName: payload.playlistName || '🔥 Tendances Gen Z & TikTok 2024-2026',
+              playlistId: payload.playlistId || 'rap-fr',
+              playlistName: payload.playlistName || '⚡ Rap FR',
               snippetSteps: [1.0, 2.0, 4.0, 7.0, 11.0, 16.0],
               customArtist: payload.customArtist || '',
             };
@@ -461,6 +476,24 @@ async function startServer() {
             if (!currentRoomId || !playerId) return;
             const room = rooms.get(currentRoomId);
             if (!room || room.hostId !== playerId || room.status !== 'lobby') return;
+
+            // Enforce minimum players and that ALL non-host participants have toggled ready
+            const nonHostPlayers = Array.from(room.players.values()).filter(
+              p => !p.player.isHost && p.player.id !== room.hostId
+            );
+
+            if (room.players.size < 2) {
+              sendToPlayer(ws, 'error', { message: 'Il faut au moins 2 joueurs pour démarrer la partie multijoueur.' });
+              return;
+            }
+
+            const unreadyPlayer = nonHostPlayers.find(p => !p.player.isReady);
+            if (unreadyPlayer) {
+              sendToPlayer(ws, 'error', {
+                message: `Impossible de lancer : tous les participants n'ont pas encore mis "Prêt" (${unreadyPlayer.player.nickname} n'est pas prêt).`
+              });
+              return;
+            }
 
             broadcastToRoom(room, 'game:starting', { message: 'Chargement des titres musicaux...' });
 
@@ -715,6 +748,46 @@ async function startServer() {
             }
 
             broadcastToRoom(room, 'room:update', getSanitizedRoomState(room));
+            break;
+          }
+
+          case 'room:leave':
+          case 'leave_room': {
+            if (!currentRoomId || !playerId) return;
+            const room = rooms.get(currentRoomId);
+            if (room) {
+              const leavingPlayer = room.players.get(playerId)?.player;
+              room.players.delete(playerId);
+
+              if (room.players.size === 0) {
+                if (room.roundTimer) clearTimeout(room.roundTimer);
+                if (room.tickerTimer) clearInterval(room.tickerTimer);
+                if (room.nextRoundTimer) clearTimeout(room.nextRoundTimer);
+                rooms.delete(currentRoomId);
+              } else {
+                if (room.hostId === playerId) {
+                  const nextHost = Array.from(room.players.values())[0];
+                  if (nextHost) {
+                    room.hostId = nextHost.player.id;
+                    nextHost.player.isHost = true;
+                  }
+                }
+                const leaveMsg: ChatMessage = {
+                  id: `sys_${Date.now()}`,
+                  senderId: 'system',
+                  senderName: 'Système',
+                  senderColor: '#ef4444',
+                  text: `${leavingPlayer?.nickname || 'Un joueur'} a quitté la salle.`,
+                  timestamp: Date.now(),
+                  isSystem: true,
+                };
+                room.chatMessages.push(leaveMsg);
+                broadcastToRoom(room, 'room:update', getSanitizedRoomState(room));
+                broadcastToRoom(room, 'chat:message', leaveMsg);
+              }
+            }
+            currentRoomId = null;
+            sendToPlayer(ws, 'room:left', { success: true });
             break;
           }
         }

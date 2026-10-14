@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, Volume2, Volume1, VolumeX, Lock, FastForward, Flag, RotateCcw } from 'lucide-react';
+import { Play, Square, Volume2, Volume1, VolumeX, Lock } from 'lucide-react';
 
 interface AudioWaveformProps {
   steps: number[];
@@ -82,12 +82,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
                 </strong>
               </span>
               <span className="text-slate-600 hidden sm:inline">·</span>
-              <span className="text-slate-400 text-xs">
+              <span className="text-slate-400 text-xs font-medium">
                 {currentStep}/{steps.length}
-              </span>
-              <span className="text-slate-600 hidden sm:inline">·</span>
-              <span className="text-slate-400 text-xs italic">
-                Cliquez sur une tranche pour la réécouter
               </span>
             </div>
           )}
@@ -236,93 +232,47 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         </div>
       </div>
 
-      {/* Center Controls: Play Button & Timers & Quick Replay */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs font-bold text-slate-400 w-14">
+      {/* Center Controls: Play Button & Timers */}
+      <div className="grid grid-cols-3 items-center pt-2">
+        {/* Left: Current Time */}
+        <div className="flex items-center justify-start">
+          <span className="font-mono text-xs sm:text-sm font-bold text-slate-400">
             {formatTime(isPlaying ? currentTime : (currentTime > 0 ? currentTime : currentStepStart))}
           </span>
+        </div>
 
-          {/* Quick replay from 0s button */}
+        {/* Center: Big Play / Pause Circle (Truly Centered) */}
+        <div className="flex items-center justify-center">
           <button
-            onClick={() => onReplayAll?.()}
+            onClick={onTogglePlay}
             type="button"
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 text-[11px] font-medium transition-colors cursor-pointer border border-slate-700/60"
-            title={`Tout réécouter depuis le début (0s à ${currentStepEnd}s)`}
+            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 transform active:scale-95 cursor-pointer ${
+              isPlaying
+                ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-[0_0_30px_rgba(244,63,94,0.4)] ring-4 ring-rose-500/20'
+                : 'bg-[#10b981] hover:bg-[#059669] text-slate-950 shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-105 ring-4 ring-emerald-500/20'
+            }`}
+            title={
+              isPlaying
+                ? 'Arrêter la lecture'
+                : isRevealed
+                ? 'Écouter le morceau complet (30s)'
+                : `Écouter l'étape ${currentStep} (${currentStepStart}s ➔ ${currentStepEnd}s)`
+            }
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Tout écouter</span>
+            {isPlaying ? (
+              <Square className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+            ) : (
+              <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-current ml-1" />
+            )}
           </button>
         </div>
 
-        {/* Big Play / Pause Circle */}
-        <button
-          onClick={onTogglePlay}
-          type="button"
-          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 transform active:scale-95 cursor-pointer ${
-            isPlaying
-              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-[0_0_30px_rgba(244,63,94,0.4)] ring-4 ring-rose-500/20'
-              : 'bg-[#10b981] hover:bg-[#059669] text-slate-950 shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-105 ring-4 ring-emerald-500/20'
-          }`}
-          title={
-            isPlaying
-              ? 'Arrêter la lecture'
-              : isRevealed
-              ? 'Écouter le morceau complet (30s)'
-              : `Écouter l'étape ${currentStep} (${currentStepStart}s ➔ ${currentStepEnd}s)`
-          }
-        >
-          {isPlaying ? (
-            <Square className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
-          ) : (
-            <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-current ml-1" />
-          )}
-        </button>
-
-        <span className="font-mono text-xs font-bold text-slate-400 w-16 text-right">
-          {formatTime(isRevealed ? 30 : currentStepEnd)}
-        </span>
-      </div>
-
-      {/* Footer bar with 'Espace pour écouter' on the left, and PASSER button placed on the right */}
-      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-400 px-1 border-t border-slate-800/60 pt-3">
-        <span className="flex items-center gap-1.5 text-slate-300">
-          <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md border border-slate-700/80 text-xs font-medium shadow-sm">
-            Espace
+        {/* Right: Step End Time */}
+        <div className="flex items-center justify-end">
+          <span className="font-mono text-xs sm:text-sm font-bold text-slate-400">
+            {formatTime(isRevealed ? 30 : currentStepEnd)}
           </span>
-          <span>pour écouter</span>
-        </span>
-
-        {/* Passer button placed right on the bar as requested */}
-        {!isRevealed && onSkip && (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onSkip();
-            }}
-            type="button"
-            className={`flex items-center gap-1.5 px-4 py-1.5 font-bold text-xs rounded-xl border transition-all cursor-pointer active:scale-95 shadow-sm ${
-              currentStep >= steps.length
-                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:text-white'
-            }`}
-            title="Passer à l'extrait suivant"
-          >
-            {currentStep >= steps.length ? (
-              <>
-                <Flag className="w-3.5 h-3.5 text-rose-400" />
-                <span>Terminer la manche</span>
-              </>
-            ) : (
-              <>
-                <FastForward className="w-3.5 h-3.5 text-emerald-400" />
-                <span>
-                  Passer {nextDurationDiff ? `(+${nextDurationDiff}s)` : ''}
-                </span>
-              </>
-            )}
-          </button>
-        )}
+        </div>
       </div>
     </div>
   );

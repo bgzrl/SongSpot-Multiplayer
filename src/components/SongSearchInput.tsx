@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, X, Send, Music, Check } from 'lucide-react';
+import { Search, Loader2, X, Send, Music, Check, FastForward } from 'lucide-react';
 import { Song } from '../types/game';
 
 interface SongSearchInputProps {
@@ -18,8 +18,12 @@ const clientSearchCache = new Map<string, Song[]>();
 
 export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   onGuess,
+  onSkip,
   disabled = false,
   hasGuessed = false,
+  currentStep,
+  totalSteps,
+  steps,
   imposedArtist,
 }) => {
   const [query, setQuery] = useState('');
@@ -163,9 +167,25 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
     inputRef.current?.focus();
   };
 
+  // For single-artist mode, sort suggestions alphabetically by title so suggestions never leak round sequence!
+  const displayResults = React.useMemo(() => {
+    if (imposedArtist && results.length > 0) {
+      return [...results].sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return results;
+  }, [results, imposedArtist]);
+
+  const hasText = Boolean(query.trim().length > 0 || selectedSong !== null);
+  const canSubmit = !disabled && !hasGuessed && (selectedSong !== null || query.trim().length >= minChars);
+
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (disabled || hasGuessed) return;
+
+    if (!hasText) {
+      onSkip?.();
+      return;
+    }
 
     if (selectedSong) {
       onGuess(selectedSong, `${selectedSong.title} ${selectedSong.artist}`);
@@ -177,8 +197,8 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
     }
 
     // If suggestions are available, pick the highlighted or #1 ranked suggestion
-    if (results.length > 0) {
-      const bestSong = results[selectedIndex >= 0 && selectedIndex < results.length ? selectedIndex : 0];
+    if (displayResults.length > 0) {
+      const bestSong = displayResults[selectedIndex >= 0 && selectedIndex < displayResults.length ? selectedIndex : 0];
       if (bestSong) {
         onGuess(bestSong, `${bestSong.title} ${bestSong.artist}`);
         setSelectedSong(null);
@@ -213,14 +233,14 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (disabled || hasGuessed) return;
 
-    if (isOpen && results.length > 0) {
+    if (isOpen && displayResults.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex(prev => (prev < results.length - 1 ? prev + 1 : 0));
+        setSelectedIndex(prev => (prev < displayResults.length - 1 ? prev + 1 : 0));
         return;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex(prev => (prev > 0 ? prev - 1 : results.length - 1));
+        setSelectedIndex(prev => (prev > 0 ? prev - 1 : displayResults.length - 1));
         return;
       } else if (e.key === 'Enter') {
         e.preventDefault();
@@ -237,8 +257,6 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
       handleSubmit();
     }
   };
-
-  const canSubmit = !disabled && !hasGuessed && (selectedSong !== null || query.trim().length >= minChars);
 
   return (
     <div className="w-full relative space-y-2">
@@ -307,20 +325,36 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
           )}
         </div>
 
-        {/* Submit Button */}
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          type="button"
-          className={`px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shrink-0 cursor-pointer ${
-            canSubmit
-              ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
-              : 'bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
-          }`}
-        >
-          <Send className="w-4 h-4 fill-current" />
-          <span>Valider</span>
-        </button>
+        {/* Unified Dynamic Action Button: Passer when empty, Valider when text entered */}
+        {hasText ? (
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            type="submit"
+            className={`px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shrink-0 cursor-pointer min-w-[125px] ${
+              canSubmit
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
+                : 'bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <Send className="w-4 h-4 fill-current" />
+            <span>Valider</span>
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onSkip?.();
+            }}
+            disabled={disabled || hasGuessed || !onSkip}
+            type="button"
+            className="px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-200 border border-slate-700/80 cursor-pointer shrink-0 min-w-[125px] disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Passer à l'extrait suivant"
+          >
+            <FastForward className="w-4 h-4 text-emerald-400" />
+            <span>Passer</span>
+          </button>
+        )}
       </form>
 
       {/* Autocomplete Dropdown spans full container width */}
@@ -329,14 +363,14 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
           ref={dropdownRef}
           className="absolute z-[100] left-0 right-0 top-full mt-2 bg-slate-900 border-2 border-slate-700/80 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-98 duration-150"
         >
-          {results.length > 0 ? (
+          {displayResults.length > 0 ? (
             <>
               <div className="bg-slate-950/90 px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
-                <span>Suggestions ({results.length})</span>
-                <span className="text-emerald-400 text-xs lowercase font-semibold">Cliquez ou Entrée pour valider</span>
+                <span>Titres ({displayResults.length})</span>
+                <span className="text-emerald-400 text-xs lowercase font-semibold">Entrée ou clic pour valider</span>
               </div>
 
-              {results.map((song, index) => {
+              {displayResults.map((song, index) => {
                 const isSelected = index === selectedIndex;
                 return (
                   <div
@@ -395,9 +429,8 @@ export const SongSearchInput: React.FC<SongSearchInputProps> = ({
               })}
             </>
           ) : !loading ? (
-            <div className="p-4 text-center text-xs text-slate-400">
-              <span>Aucun titre trouvé dans le catalogue pour « <strong className="text-white">{query}</strong> ».</span>
-              <div className="mt-1 text-slate-500 text-[11px]">Appuyez sur <strong className="text-slate-300">Entrée</strong> ou <strong className="text-slate-300">Valider</strong> pour soumettre directement votre texte.</div>
+            <div className="p-3 text-center text-xs text-slate-400">
+              <span>Aucun titre trouvé pour « <strong className="text-white">{query}</strong> »</span>
             </div>
           ) : null}
         </div>

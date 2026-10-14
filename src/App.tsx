@@ -96,7 +96,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [liveReactions, setLiveReactions] = useState<LiveReaction[]>([]);
   const [joinCodeInput, setJoinCodeInput] = useState('');
-  const [selectedLobbyPlaylist, setSelectedLobbyPlaylist] = useState('trending-gen-z');
+  const [selectedLobbyPlaylist, setSelectedLobbyPlaylist] = useState('rap-fr');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);
   const [volume, setVolume] = useState<number>(() => {
@@ -326,7 +326,7 @@ export default function App() {
         avatar,
         color,
         playlistId: selectedLobbyPlaylist,
-        playlistName: selectedPl?.name || '🔥 Tendances Gen Z & TikTok 2024-2026',
+        playlistName: selectedPl?.name || '⚡ Rap FR',
       },
     }));
   };
@@ -423,20 +423,28 @@ export default function App() {
     ws.send(JSON.stringify({ type: 'room:play_again' }));
   };
 
+  const userLeftRoomRef = useRef(false);
+
   const handleLeaveRoom = () => {
+    userLeftRoomRef.current = true;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'room:leave' }));
+    }
+    try {
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch {}
     window.location.hash = '';
+    setJoinCodeInput('');
     setRoomState(null);
     setPlayerId(null);
     setChatMessages([]);
+    setLiveReactions([]);
+    showToast('Vous avez quitté la salle', 'info');
   };
 
   const handleReturnHome = () => {
-    if (roomState && ws) {
-      ws.send(JSON.stringify({ type: 'leave_room' }));
-    }
-    setRoomState(null);
-    setActiveTab('multiplayer');
-    setToastMessage({ text: 'Retour à l’accueil', type: 'info' });
+    handleLeaveRoom();
+    setActiveTab('solo');
   };
 
   return (
@@ -462,10 +470,15 @@ export default function App() {
       <Navbar
         currentTab={activeTab}
         onTabChange={tab => {
+          if (roomState && tab === 'solo') {
+            handleLeaveRoom();
+          }
           setActiveTab(tab);
         }}
         isConnected={isConnected}
         onHomeClick={handleReturnHome}
+        isInRoom={Boolean(roomState)}
+        onLeaveRoom={handleLeaveRoom}
       />
 
       {/* Main Container */}
@@ -483,6 +496,7 @@ export default function App() {
                 onStartGame={handleStartGame}
                 onToggleReady={handleToggleReady}
                 onUpdateSettings={handleUpdateSettings}
+                onLeaveRoom={handleLeaveRoom}
               />
             )}
 
@@ -492,6 +506,7 @@ export default function App() {
                 currentUserId={playerId || ''}
                 onGuess={handleGuess}
                 onSkip={handleSkip}
+                onLeaveRoom={handleLeaveRoom}
                 onForceEndRound={roomState.hostId === playerId ? handleNextRound : undefined}
               />
             )}
